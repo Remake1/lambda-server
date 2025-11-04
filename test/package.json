@@ -1,0 +1,19 @@
+{
+  "name": "lambda-server-ws-tests",
+  "version": "1.0.0",
+  "description": "WebSocket test script for Lambda Server",
+  "main": "ws_test.js",
+  "scripts": {
+    "test": "node ws_test.js"
+  },
+  "keywords": [
+    "websocket",
+    "test"
+  ],
+  "author": "",
+  "license": "ISC",
+  "dependencies": {
+    "ws": "^8.16.0"
+  },
+  "packageManager": "pnpm@10.12.2+sha512.a32540185b964ee30bb4e979e405adc6af59226b438ee4cc19f9e8773667a66d302f5bfee60a39d3cac69e35e4b96e708a71dd002b7e9359c4112a1722ac323f"
+}
