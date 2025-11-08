@@ -1,107 +1,109 @@
-// internal/websocket/handlers.go
-
 package websocket
 
 import (
-	"context"
 	"log"
 	"net/http"
 
-	"github.com/coder/websocket"
 	"github.com/gin-gonic/gin"
+	"github.com/google/uuid"
+	"github.com/gorilla/websocket"
 )
 
-// WsHandler holds the Hub and provides Gin handler methods.
-type WsHandler struct {
-	hub *Hub
+// upgrader specifies the parameters for upgrading an HTTP connection
+// to a WebSocket connection.
+var upgrader = websocket.Upgrader{
+	// Set reasonable buffer sizes.[1, 2, 5]
+	ReadBufferSize:  1024,
+	WriteBufferSize: 1024,
+
+	// CheckOrigin is a security-critical function.
+	// In production, this must validate the origin against a
+	// list of allowed domains.[25]
+	CheckOrigin: func(r *http.Request) bool {
+		// log.Printf("Upgrader: Checking origin: %s", r.Header.Get("Origin"))
+		return true // Allow all for development.
+	},
+
+	// Enable compression for better performance.[16]
+	EnableCompression: true,
 }
 
-// NewWsHandler creates a new WsHandler.
-func NewWsHandler(h *Hub) *WsHandler {
-	return &WsHandler{hub: h}
-}
-
-// ServeWsClient handles the client WebSocket connection request.
-func (wh *WsHandler) ServeWsClient(c *gin.Context) {
-	// 1. Get UserID from the Gin context (set by AuthMiddleware)
-	userIDVal, ok := c.Get("userID")
-	if !ok {
-		log.Println("userID not found in context")
+// ServeClientWs is the Gin handler for the authenticated client's
+// WebSocket connection.
+// It retrieves the user's UUID from the AuthMiddleware.
+func (h *Hub) ServeClientWs(c *gin.Context) {
+	// --- Extract data from Gin Context FIRST ---
+	// 1. Get the Client UUID from the context.
+	// This value *must* be set by your AuthMiddleware.
+	// The key "userID" is assumed; this must match
+	// the key used in the middleware's `c.Set()` call.
+	uuidValue, exists := c.Get("userID")
+	if !exists {
+		log.Println("Handler: Error: userID not found in context. AuthMiddleware failed?")
 		c.JSON(http.StatusUnauthorized, gin.H{"error": "Unauthorized"})
 		return
 	}
 
-	userID, ok := userIDVal.(string)
+	clientUUID, ok := uuidValue.(string)
 	if !ok {
-		log.Println("userID in context is not a string")
-		c.JSON(http.StatusInternalServerError, gin.H{"error": "Internal server error"})
+		log.Println("Handler: Error: userID in context is not a string.")
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "Invalid user identity in context"})
 		return
 	}
+	// --- End Context Handling ---
 
-	// 2. Upgrade connection
-	conn, err := websocket.Accept(c.Writer, c.Request, &websocket.AcceptOptions{
-		// Set OriginPatterns for production environments
-		// OriginPatterns:string{"example.com"},
-	})
+	// 2. Upgrade the connection
+	conn, err := upgrader.Upgrade(c.Writer, c.Request, nil)
 	if err != nil {
-		log.Printf("Failed to upgrade client connection: %v", err)
+		log.Printf("Handler: Failed to upgrade client connection: %v", err)
 		return
 	}
+	log.Printf("Handler: Client connection upgrading for UUID %s", clientUUID)
 
-	// 3. Create the master context for the connection's lifecycle
-	ctx, cancel := context.WithCancel(context.Background())
+	// 3. Create the Connection object
+	wsConn := NewClientConnection(conn, h, clientUUID)
 
-	// 4. Create the ClientConnection struct
-	client := &ClientConnection{
-		conn:   conn,
-		hub:    wh.hub,
-		ctx:    ctx,
-		cancel: cancel,
-		send:   make(chan []byte, 256), // Buffered channel
-		UserID: userID,
-	}
+	// 4. Register with the Hub
+	wsConn.RegisterWithHub()
 
-	// 5. Register the client with the hub
-	wh.hub.registerClient <- client
-
-	// 6. Start the I/O goroutines
-	go client.writePump()
-	go client.readPump()
+	// 5. Start the read/write pumps
+	wsConn.StartPumps()
 }
 
-// ServeWsHardware handles the hardware WebSocket connection request.
-func (wh *WsHandler) ServeWsHardware(c *gin.Context) {
-	// 1. Get Client UUID from the URL parameter
+// ServeHardwareWs is the Gin handler for the hardware's WebSocket
+// connection. It retrieves the Client UUID from the URL path.
+func (h *Hub) ServeHardwareWs(c *gin.Context) {
+	// --- Extract data from Gin Context FIRST ---
+	// 1. Get the Client UUID from the path parameter.
 	clientUUID := c.Param("uuid")
 	if clientUUID == "" {
-		c.JSON(http.StatusBadRequest, gin.H{"error": "Missing client uuid"})
+		log.Println("Handler: Error: Hardware connect with no UUID.")
+		c.JSON(http.StatusBadRequest, gin.H{"error": "Missing client UUID in path"})
 		return
 	}
 
-	// 2. Upgrade connection
-	conn, err := websocket.Accept(c.Writer, c.Request, nil)
+	// Validate if it's a real UUID (optional but good practice)
+	if _, err := uuid.Parse(clientUUID); err != nil {
+		log.Printf("Handler: Error: Hardware connect with invalid UUID: %s", clientUUID)
+		c.JSON(http.StatusBadRequest, gin.H{"error": "Invalid UUID format"})
+		return
+	}
+	// --- End Context Handling ---
+
+	// 2. Upgrade the connection
+	conn, err := upgrader.Upgrade(c.Writer, c.Request, nil)
 	if err != nil {
-		log.Printf("Failed to upgrade hardware connection: %v", err)
+		log.Printf("Handler: Failed to upgrade hardware connection: %v", err)
 		return
 	}
+	log.Printf("Handler: Hardware connection upgrading for Client UUID %s", clientUUID)
 
-	// 3. Create the master context
-	ctx, cancel := context.WithCancel(context.Background())
+	// 3. Create the Connection object
+	wsConn := NewHardwareConnection(conn, h, clientUUID)
 
-	// 4. Create the HardwareConnection struct
-	hardware := &HardwareConnection{
-		conn:       conn,
-		hub:        wh.hub,
-		ctx:        ctx,
-		cancel:     cancel,
-		send:       make(chan []byte, 256),
-		ClientUUID: clientUUID,
-	}
+	// 4. Register with the Hub
+	wsConn.RegisterWithHub()
 
-	// 5. Register the hardware with the hub (which will attempt pairing)
-	wh.hub.registerHardware <- hardware
-
-	// 6. Start the I/O goroutines
-	go hardware.writePump()
-	go hardware.readPump()
+	// 5. Start the read/write pumps
+	wsConn.StartPumps()
 }

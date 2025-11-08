@@ -10,6 +10,7 @@ import (
 
 func NewRouter(hub *websocket.Hub) *gin.Engine {
 	router := gin.Default() // gin.Default() comes with Logger and Recovery middleware.
+	wsHub := websocket.NewHub()
 
 	api := router.Group("/api/v1")
 	{
@@ -22,27 +23,22 @@ func NewRouter(hub *websocket.Hub) *gin.Engine {
 
 	// In server setup
 	// Instantiate the WsHandler
-	wsHandler := websocket.NewWsHandler(hub)
 
 	// In server setup
 	wsGroup := router.Group("/ws")
 	{
 		// Client endpoint protected by auth middleware
 		authRequired := wsGroup.Group("/")
-
 		authRequired.Use(AuthMiddleware())
 
-		authRequired.GET("/client", wsHandler.ServeWsClient)
-
-		// Temporary path without middleware for testing
-		// wsGroup.GET("/client/:userID", func(c *gin.Context) {
-		// 	// Mock auth middleware: set userID from path
-		// 	c.Set("userID", c.Param("userID"))
-		// 	wsHandler.ServeWsClient(c)
-		// })
+		authRequired.GET("/client", func(c *gin.Context) {
+			wsHub.ServeClientWs(c)
+		})
 
 		// Hardware endpoint
-		wsGroup.GET("/hardware/:uuid", wsHandler.ServeWsHardware)
+		wsGroup.GET("/hardware/:uuid", func(c *gin.Context) {
+			wsHub.ServeHardwareWs(c)
+		})
 	}
 
 	return router
