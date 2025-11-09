@@ -1,23 +1,25 @@
 package main
 
 import (
+	"lambda_server/internal/config"
 	"lambda_server/internal/database"
 	"lambda_server/internal/server"
-	"log"
-	"os"
-
 	"lambda_server/internal/websocket"
+	"log"
 
 	"github.com/joho/godotenv"
 )
 
 func main() {
+	// Load.env file into environment variables
 	err := godotenv.Load()
 	if err != nil {
-		log.Fatal("Error loading.env file")
+		log.Println("Warning:.env file not found")
 	}
 
-	database.Connect()
+	cfg := config.LoadConfig()
+
+	database.Connect(cfg)
 
 	// AutoMigrate the schema
 	err = database.DB.AutoMigrate(&database.User{})
@@ -35,7 +37,7 @@ func main() {
 	// 3. Pass the Hub to the router setup
 	router := server.NewRouter(hub)
 
-	port := os.Getenv("PORT")
+	port := cfg.Port
 	if port == "" {
 		port = "8080" // Default port if not specified
 	}

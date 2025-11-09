@@ -22,6 +22,7 @@ type LoginPayload struct {
 	Password string `json:"password" binding:"required"`
 }
 
+// JwtKey TODO: get JWT from config module
 var JwtKey = []byte(os.Getenv("JWT_SECRET_KEY"))
 
 func Register(c *gin.Context) {
