@@ -1,14 +1,15 @@
 
-FROM golang:1.22-alpine AS builder
+FROM golang:1.25-alpine AS builder
 
 WORKDIR /app
 
-COPY go.mod go.sum./
+COPY go.mod ./
+
 RUN go mod download
 
 COPY . .
 
-RUN CGO_ENABLED=0 GOOS=linux go build -a -installsuffix cgo -o /dist/server./cmd/server
+RUN CGO_ENABLED=0 GOOS=linux go build -o /dist/server ./cmd/server
 
 FROM alpine:latest
 
