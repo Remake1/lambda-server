@@ -1,7 +1,9 @@
 package websocket
 
 import (
+	"context"
 	"encoding/json"
+	"lambda_server/internal/services"
 	"log"
 
 	"github.com/gorilla/websocket"
@@ -17,11 +19,23 @@ type HubMessage struct {
 	ClientUUID string
 }
 
+// AIResultMessage is used to send AI processing results back to the Hub
+// for thread-safe delivery to clients.
+type AIResultMessage struct {
+	ClientUUID string
+	Result     string
+	Error      error
+	ImageSize  int
+}
+
 // ConnectionPair holds the paired client and hardware connections.
 // This is the core data structure for managing the 1-to-1 relationship.
 type ConnectionPair struct {
 	Client   *Connection
 	Hardware *Connection
+	// Client preferences for AI processing
+	RequestType string // "leetcode" or "other"
+	Language    string // "C++", "C", "Python", "JavaScript", "TypeScript"
 }
 
 // Hub manages the lifecycle of WebSocket connections and message routing.
@@ -45,10 +59,16 @@ type Hub struct {
 
 	// Channel for processing messages received from hardware.
 	processHardwareMsg chan *HubMessage
+
+	// Channel for AI processing results to be sent to clients.
+	aiResult chan *AIResultMessage
+
+	// Gemini AI service for image analysis
+	geminiService *services.GeminiService
 }
 
 // NewHub creates and returns a new Hub instance.
-func NewHub() *Hub {
+func NewHub(geminiService *services.GeminiService) *Hub {
 	return &Hub{
 		connections:        make(map[string]*ConnectionPair),
 		registerClient:     make(chan *Connection),
@@ -56,6 +76,8 @@ func NewHub() *Hub {
 		unregister:         make(chan *Connection),
 		processClientMsg:   make(chan *HubMessage),
 		processHardwareMsg: make(chan *HubMessage),
+		aiResult:           make(chan *AIResultMessage),
+		geminiService:      geminiService,
 	}
 }
 
@@ -84,6 +106,10 @@ func (h *Hub) Run() {
 		// Case 5: Process a message from Hardware
 		case msg := <-h.processHardwareMsg:
 			h.handleHardwareMessage(msg)
+
+		// Case 6: Process AI result and send to client
+		case aiMsg := <-h.aiResult:
+			h.handleAIResult(aiMsg)
 		}
 	}
 }
@@ -174,9 +200,61 @@ func (h *Hub) handleUnregistration(conn *Connection) {
 
 func (h *Hub) handleClientMessage(msg *HubMessage) {
 	pair, ok := h.connections[msg.ClientUUID]
-	if !ok || pair.Hardware == nil {
-		// No hardware to send to
-		log.Printf("Hub: Dropping client message for %s. No hardware connected.", msg.ClientUUID)
+	if !ok {
+		// Create pair if it doesn't exist
+		pair = &ConnectionPair{}
+		h.connections[msg.ClientUUID] = pair
+	}
+
+	// Try to parse the message as JSON to extract type and language
+	var clientMsg map[string]interface{}
+	if err := json.Unmarshal(msg.Payload, &clientMsg); err == nil {
+		// Extract type and language - check both top-level and nested in payload
+		var requestType, language string
+
+		// Check top-level first
+		if rt, ok := clientMsg["type"].(string); ok {
+			requestType = rt
+		}
+		if lang, ok := clientMsg["language"].(string); ok {
+			language = lang
+		}
+
+		// If not found at top-level, check in payload
+		if payload, ok := clientMsg["payload"].(map[string]interface{}); ok {
+			if rt, ok := payload["type"].(string); ok && requestType == "" {
+				requestType = rt
+			}
+			if lang, ok := payload["language"].(string); ok && language == "" {
+				language = lang
+			}
+		}
+
+		// Store request type if valid
+		if requestType == "leetcode" || requestType == "other" {
+			pair.RequestType = requestType
+			log.Printf("Hub: Stored request type '%s' for UUID %s", requestType, msg.ClientUUID)
+		}
+
+		// Store language if valid
+		if language != "" {
+			validLanguages := map[string]bool{
+				"C++":        true,
+				"C":          true,
+				"Python":     true,
+				"JavaScript": true,
+				"TypeScript": true,
+			}
+			if validLanguages[language] {
+				pair.Language = language
+				log.Printf("Hub: Stored language '%s' for UUID %s", language, msg.ClientUUID)
+			}
+		}
+	}
+
+	// If hardware is not connected, just store preferences and return
+	if pair.Hardware == nil {
+		log.Printf("Hub: Storing client preferences for %s. No hardware connected yet.", msg.ClientUUID)
 		h.sendSystemMessage(msg.Connection, "hardware_not_connected")
 		return
 	}
@@ -217,40 +295,65 @@ func (h *Hub) handleHardwareMessage(msg *HubMessage) {
 
 		log.Printf("Hub: Received BINARY image from hardware %s. Size: %d bytes", msg.ClientUUID, imageSize)
 
-		// --- FUTURE AI INTEGRATION HOOK ---
-		// For now, we just get the size.
-		// In the future, this is where you'd call your AI service:
-		//
-		// aiResult, err := ai.ProcessImage(imageData)
-		// if err!= nil {
-		//   h.sendErrorMessage(pair.Client, "ai_processing_failed", err.Error())
-		//   return
-		// }
-		//
-		// Then, you would use 'aiResult' in the response.
-		// --- END HOOK ---
+		// Get client preferences for AI processing
+		requestType := pair.RequestType
+		language := pair.Language
 
-		// Create the JSON response for the CLIENT
-		response := map[string]interface{}{
-			"type": "image_analysis_result",
-			"payload": map[string]interface{}{
-				"image_size": imageSize,
-				// "ai_result": aiResult, // For the future
-			},
+		// Default values if not set
+		if requestType == "" {
+			requestType = "other"
+			log.Printf("Hub: No request type specified for %s, defaulting to 'other'", msg.ClientUUID)
+		}
+		if requestType == "leetcode" && language == "" {
+			language = "C++" // Default language for leetcode
+			log.Printf("Hub: No language specified for leetcode request %s, defaulting to 'C++'", msg.ClientUUID)
 		}
 
-		jsonResponse, err := json.Marshal(response)
-		if err != nil {
-			log.Printf("Hub: Error: Failed to marshal response: %v", err)
-			return
-		}
+		// Call Gemini AI service to analyze the image
+		// Make this call in a goroutine to avoid blocking the Hub's event loop
+		if h.geminiService != nil {
+			log.Printf("Hub: Calling Gemini API for UUID %s (type: %s, language: %s)", msg.ClientUUID, requestType, language)
 
-		// Send this JSON response to the Client's send channel
-		select {
-		case pair.Client.send <- jsonResponse:
-		default:
-			log.Printf("Hub: Error: Client send buffer full for %s. Closing connection.", msg.ClientUUID)
-			close(pair.Client.send)
+			// Make the API call asynchronously
+			go func() {
+				ctx := context.Background()
+				aiResult, aiError := h.geminiService.AnalyzeImage(ctx, imageData, requestType, language)
+
+				// Send result back to Hub's event loop for thread-safe delivery
+				h.aiResult <- &AIResultMessage{
+					ClientUUID: msg.ClientUUID,
+					Result:     aiResult,
+					Error:      aiError,
+					ImageSize:  imageSize,
+				}
+			}()
+		} else {
+			log.Printf("Hub: Warning: Gemini service not available for UUID %s", msg.ClientUUID)
+			aiResult := "AI service not available"
+
+			// Create the JSON response for the CLIENT
+			response := map[string]interface{}{
+				"type": "image_analysis_result",
+				"payload": map[string]interface{}{
+					"image_size": imageSize,
+					"ai_result":  aiResult,
+				},
+			}
+
+			jsonResponse, err := json.Marshal(response)
+			if err != nil {
+				log.Printf("Hub: Error: Failed to marshal response: %v", err)
+				return
+			}
+
+			// Send this JSON response to the Client's send channel
+			select {
+			case pair.Client.send <- jsonResponse:
+				log.Printf("Hub: Successfully sent AI result to client %s", msg.ClientUUID)
+			default:
+				log.Printf("Hub: Error: Client send buffer full for %s. Closing connection.", msg.ClientUUID)
+				close(pair.Client.send)
+			}
 		}
 
 	} else if msg.Type == websocket.TextMessage {
@@ -295,5 +398,66 @@ func (h *Hub) sendSystemMessage(conn *Connection, message string) {
 	default:
 		// Connection's buffer is full, disconnect it
 		close(conn.send)
+	}
+}
+
+func (h *Hub) sendErrorMessage(conn *Connection, errorType, errorMessage string) {
+	// A helper to send error messages to the client
+	msg := map[string]interface{}{
+		"type": "error",
+		"payload": map[string]string{
+			"error_type":    errorType,
+			"error_message": errorMessage,
+		},
+	}
+	jsonMsg, _ := json.Marshal(msg)
+
+	select {
+	case conn.send <- jsonMsg:
+	default:
+		// Connection's buffer is full, disconnect it
+		close(conn.send)
+	}
+}
+
+func (h *Hub) handleAIResult(aiMsg *AIResultMessage) {
+	// Get the connection pair for this client UUID
+	pair, ok := h.connections[aiMsg.ClientUUID]
+	if !ok || pair.Client == nil {
+		log.Printf("Hub: Cannot send AI result to %s: client not connected", aiMsg.ClientUUID)
+		return
+	}
+
+	if aiMsg.Error != nil {
+		log.Printf("Hub: Error calling Gemini API for %s: %v", aiMsg.ClientUUID, aiMsg.Error)
+		h.sendErrorMessage(pair.Client, "ai_processing_failed", aiMsg.Error.Error())
+		return
+	}
+
+	log.Printf("Hub: Gemini API returned result for UUID %s (%d chars)", aiMsg.ClientUUID, len(aiMsg.Result))
+
+	// Create the JSON response for the CLIENT
+	response := map[string]interface{}{
+		"type": "image_analysis_result",
+		"payload": map[string]interface{}{
+			"image_size": aiMsg.ImageSize,
+			"ai_result":  aiMsg.Result,
+		},
+	}
+
+	jsonResponse, err := json.Marshal(response)
+	if err != nil {
+		log.Printf("Hub: Error: Failed to marshal response: %v", err)
+		return
+	}
+
+	// Send this JSON response to the Client's send channel
+	log.Printf("Hub: Sending AI result to client %s (%d bytes)", aiMsg.ClientUUID, len(jsonResponse))
+	select {
+	case pair.Client.send <- jsonResponse:
+		log.Printf("Hub: Successfully sent AI result to client %s", aiMsg.ClientUUID)
+	default:
+		log.Printf("Hub: Error: Client send buffer full for %s. Message may be lost.", aiMsg.ClientUUID)
+		// Don't close here, let the writePump handle connection issues
 	}
 }

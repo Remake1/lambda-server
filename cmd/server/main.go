@@ -4,6 +4,7 @@ import (
 	"lambda_server/internal/config"
 	"lambda_server/internal/database"
 	"lambda_server/internal/server"
+	"lambda_server/internal/services"
 	"lambda_server/internal/websocket"
 	"log"
 
@@ -28,8 +29,17 @@ func main() {
 	}
 	log.Println("Database migrated successfully")
 
+	// Initialize Gemini AI service
+	geminiService, err := services.NewGeminiService(cfg)
+	if err != nil {
+		log.Printf("Warning: Failed to initialize Gemini service: %v. AI features will be disabled.", err)
+		geminiService = nil // Continue without AI features
+	} else {
+		log.Println("Gemini AI service initialized successfully")
+	}
+
 	// Start the server
-	hub := websocket.NewHub()
+	hub := websocket.NewHub(geminiService)
 
 	// 2. Run the Hub in its own goroutine
 	go hub.Run()
