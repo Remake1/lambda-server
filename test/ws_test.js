@@ -1,20 +1,23 @@
 #!/usr/bin/env node
 
 /**
- * WebSocket Test Script for Lambda Server
+ * WebSocket Test Script for Lambda Server - AI Integration Test
  * 
- * This script tests the WebSocket functionality:
+ * This script tests the AI integration with Gemini API:
  * 1. Registers a test user (or uses existing)
  * 2. Logs in to get JWT token
  * 3. Connects client WebSocket (authenticated)
- * 4. Connects hardware WebSocket (with client UUID)
- * 5. Tests message flow between client and hardware
- * 6. Tests binary image sending from hardware
+ * 4. Sends message with type="leetcode" and language="C++"
+ * 5. Connects hardware WebSocket (with client UUID)
+ * 6. Sends sample.png image from hardware
+ * 7. Verifies AI response is received from server
  */
 
 const WebSocket = require('ws');
 const http = require('http');
 const https = require('https');
+const fs = require('fs');
+const path = require('path');
 
 // Configuration
 const BASE_URL = process.env.BASE_URL || 'http://localhost:3000';
@@ -22,8 +25,8 @@ const WS_URL = process.env.WS_URL || 'ws://localhost:3000';
 
 // Test user credentials
 const TEST_USER = {
-  username: `testuser_${Date.now()}`,
-  email: `test_${Date.now()}@example.com`,
+  username: `testuser_ai_${Date.now()}`,
+  email: `test_ai_${Date.now()}@example.com`,
   password: 'testpassword123'
 };
 
@@ -142,136 +145,42 @@ async function login() {
 }
 
 /**
- * Test client WebSocket connection
+ * Read sample.png image file
  */
-function testClientWebSocket() {
-  return new Promise((resolve, reject) => {
-    console.log('\n🔌 Connecting client WebSocket...');
-    
-    const ws = new WebSocket(`${WS_URL}/ws/client`, {
-      headers: {
-        'Authorization': `Bearer ${authToken}`
-      }
-    });
-
-    let messagesReceived = [];
-
-    ws.on('open', () => {
-      console.log('✅ Client WebSocket connected');
-      
-      // Send a test command message
-      const testMessage = { command: 'test_command' };
-      console.log('📤 Sending test message:', testMessage);
-      ws.send(JSON.stringify(testMessage));
-    });
-
-    ws.on('message', (data) => {
-      try {
-        const message = JSON.parse(data.toString());
-        console.log('📥 Client received message:', message);
-        messagesReceived.push(message);
-      } catch (e) {
-        console.log('📥 Client received binary/non-JSON message:', data.toString());
-        messagesReceived.push(data);
-      }
-    });
-
-    ws.on('error', (error) => {
-      console.error('❌ Client WebSocket error:', error.message);
-      reject(error);
-    });
-
-    ws.on('close', (code, reason) => {
-      console.log(`🔌 Client WebSocket closed: ${code} - ${reason.toString()}`);
-      resolve({ messages: messagesReceived, ws });
-    });
-
-    // Close after a delay to allow testing
-    setTimeout(() => {
-      if (ws.readyState === WebSocket.OPEN) {
-        ws.close();
-      }
-    }, 2000);
-  });
+function readSampleImage() {
+  const imagePath = path.join(__dirname, 'sample.png');
+  try {
+    const imageData = fs.readFileSync(imagePath);
+    console.log(`✅ Loaded sample.png (${imageData.length} bytes)`);
+    return imageData;
+  } catch (error) {
+    console.error('❌ Failed to read sample.png:', error.message);
+    throw error;
+  }
 }
 
 /**
- * Test hardware WebSocket connection
+ * Test AI integration with LeetCode type and C++ language
  */
-function testHardwareWebSocket(clientUUID) {
-  return new Promise((resolve, reject) => {
-    console.log('\n🔌 Connecting hardware WebSocket...');
-    console.log(`   Using client UUID: ${clientUUID}`);
-    
-    const ws = new WebSocket(`${WS_URL}/ws/hardware/${clientUUID}`);
-
-    let messagesReceived = [];
-
-    ws.on('open', () => {
-      console.log('✅ Hardware WebSocket connected');
-      
-      // Wait a bit, then send a binary image (simulated)
-      setTimeout(() => {
-        // Create a small fake image (PNG header + some data)
-        const fakeImage = Buffer.from([
-          0x89, 0x50, 0x4E, 0x47, 0x0D, 0x0A, 0x1A, 0x0A, // PNG signature
-          ...Array(100).fill(0x00) // Some fake data
-        ]);
-        
-        console.log('📤 Sending binary image data (size:', fakeImage.length, 'bytes)');
-        ws.send(fakeImage);
-      }, 500);
-    });
-
-    ws.on('message', (data) => {
-      try {
-        const message = JSON.parse(data.toString());
-        console.log('📥 Hardware received message:', message);
-        messagesReceived.push(message);
-      } catch (e) {
-        console.log('📥 Hardware received binary/non-JSON message');
-        messagesReceived.push(data);
-      }
-    });
-
-    ws.on('error', (error) => {
-      console.error('❌ Hardware WebSocket error:', error.message);
-      reject(error);
-    });
-
-    ws.on('close', (code, reason) => {
-      console.log(`🔌 Hardware WebSocket closed: ${code} - ${reason.toString()}`);
-      resolve({ messages: messagesReceived, ws });
-    });
-
-    // Close after a delay
-    setTimeout(() => {
-      if (ws.readyState === WebSocket.OPEN) {
-        ws.close();
-      }
-    }, 3000);
-  });
-}
-
-/**
- * Test full pairing scenario: client connects first, then hardware
- */
-async function testPairingScenario() {
-  console.log('\n🧪 Testing full pairing scenario...\n');
+async function testAIIntegration() {
+  console.log('\n🧪 Testing AI Integration with Gemini API...\n');
   
   if (!clientUserId) {
-    console.error('❌ Cannot test pairing: clientUserId not available');
-    return { clientMessages: [], hardwareMessages: [] };
+    console.error('❌ Cannot test AI integration: clientUserId not available');
+    return;
   }
-  
-  return new Promise((resolve) => {
+
+  // Read the sample image
+  const imageData = readSampleImage();
+
+  return new Promise((resolve, reject) => {
     let clientWs = null;
     let hardwareWs = null;
     let clientMessages = [];
-    let hardwareMessages = [];
+    let aiResponseReceived = false;
 
     // Step 1: Connect client
-    console.log('1️⃣  Connecting client...');
+    console.log('1️⃣  Connecting client WebSocket...');
     clientWs = new WebSocket(`${WS_URL}/ws/client`, {
       headers: {
         'Authorization': `Bearer ${authToken}`
@@ -279,31 +188,30 @@ async function testPairingScenario() {
     });
 
     clientWs.on('open', () => {
-      console.log('✅ Client connected, waiting for hardware...');
+      console.log('✅ Client WebSocket connected');
       
-      // Step 2: Connect hardware after a short delay
+      // Step 2: Send message with type and language preferences
       setTimeout(() => {
-        console.log('2️⃣  Connecting hardware...');
+        const preferencesMessage = {
+          type: 'leetcode',
+          language: 'C++'
+        };
+        console.log('2️⃣  Client sending preferences:', preferencesMessage);
+        clientWs.send(JSON.stringify(preferencesMessage));
+      }, 500);
+
+      // Step 3: Connect hardware after a short delay
+      setTimeout(() => {
+        console.log('3️⃣  Connecting hardware WebSocket...');
         hardwareWs = new WebSocket(`${WS_URL}/ws/hardware/${clientUserId}`);
 
         hardwareWs.on('open', () => {
-          console.log('✅ Hardware connected, pairing should be established');
+          console.log('✅ Hardware WebSocket connected');
           
-          // Step 3: Send message from client to hardware
+          // Step 4: Send the actual image file from hardware
           setTimeout(() => {
-            const clientMessage = { command: 'capture_image' };
-            console.log('3️⃣  Client sending message:', clientMessage);
-            clientWs.send(JSON.stringify(clientMessage));
-          }, 500);
-
-          // Step 4: Send binary image from hardware
-          setTimeout(() => {
-            const fakeImage = Buffer.from([
-              0x89, 0x50, 0x4E, 0x47, 0x0D, 0x0A, 0x1A, 0x0A,
-              ...Array(200).fill(0x00)
-            ]);
-            console.log('4️⃣  Hardware sending binary image (size:', fakeImage.length, 'bytes)');
-            hardwareWs.send(fakeImage);
+            console.log(`4️⃣  Hardware sending sample.png image (${imageData.length} bytes)...`);
+            hardwareWs.send(imageData);
           }, 1000);
         });
 
@@ -311,10 +219,8 @@ async function testPairingScenario() {
           try {
             const msg = JSON.parse(data.toString());
             console.log('📥 Hardware received:', msg);
-            hardwareMessages.push(msg);
           } catch (e) {
-            console.log('📥 Hardware received binary data');
-            hardwareMessages.push(data);
+            console.log('📥 Hardware received binary/non-JSON message');
           }
         });
 
@@ -328,36 +234,93 @@ async function testPairingScenario() {
       }, 1000);
     });
 
+
+    // Set up timeout first (90 seconds) - message handler will clear it if AI response arrives early
+    let testTimeout = setTimeout(() => {
+      if (clientWs) clientWs.close();
+      if (hardwareWs) hardwareWs.close();
+      
+      console.log('\n' + '='.repeat(60));
+      console.log('TEST SUMMARY');
+      console.log('='.repeat(60));
+      console.log('Total messages received:', clientMessages.length);
+      console.log('AI response received:', aiResponseReceived ? '✅ YES' : '❌ NO');
+      
+      if (aiResponseReceived) {
+        console.log('✅ Test PASSED - AI integration is working!');
+      } else {
+        console.log('❌ Test FAILED - AI response not received');
+        console.log('   Make sure:');
+        console.log('   1. GOOGLE_API_KEY environment variable is set');
+        console.log('   2. Gemini API service is initialized');
+        console.log('   3. Server is running and accessible');
+        console.log('   4. Gemini API call may take 30-60 seconds to complete');
+      }
+      console.log('='.repeat(60) + '\n');
+      
+      resolve({ clientMessages, aiResponseReceived });
+    }, 150000); // 150 seconds timeout to allow for slow AI processing
+
+    // Message handler - if we receive the AI response, clear the timeout and close after a short delay
     clientWs.on('message', (data) => {
       try {
         const msg = JSON.parse(data.toString());
-        console.log('📥 Client received:', msg);
+        console.log('📥 Client received:', JSON.stringify(msg, null, 2));
         clientMessages.push(msg);
         
-        // Check if we received image properties
-        if (msg.size !== undefined) {
-          console.log('✅ Image properties received! Size:', msg.size);
+        // Check if we received AI analysis result
+        if (msg.type === 'image_analysis_result') {
+          aiResponseReceived = true;
+          console.log('\n' + '='.repeat(60));
+          console.log('✅ AI ANALYSIS RESULT RECEIVED!');
+          console.log('='.repeat(60));
+          console.log('Image Size:', msg.payload?.image_size, 'bytes');
+          console.log('\nAI Response:');
+          console.log('-'.repeat(60));
+          if (msg.payload?.ai_result) {
+            console.log(msg.payload.ai_result);
+          } else {
+            console.log('(AI result field is empty)');
+          }
+          console.log('-'.repeat(60));
+          console.log('='.repeat(60) + '\n');
+          
+          // Clear the timeout and close connections after a short delay
+          clearTimeout(testTimeout);
+          setTimeout(() => {
+            if (clientWs) clientWs.close();
+            if (hardwareWs) hardwareWs.close();
+            
+            console.log('\n' + '='.repeat(60));
+            console.log('TEST SUMMARY');
+            console.log('='.repeat(60));
+            console.log('Total messages received:', clientMessages.length);
+            console.log('AI response received: ✅ YES');
+            console.log('✅ Test PASSED - AI integration is working!');
+            console.log('='.repeat(60) + '\n');
+            
+            resolve({ clientMessages, aiResponseReceived });
+          }, 1000);
+          return;
+        } else if (msg.type === 'error') {
+          console.error('❌ Error received:', msg.payload);
+        } else if (msg.type === 'system_status') {
+          console.log('ℹ️  System status:', msg.payload?.message);
         }
       } catch (e) {
-        console.log('📥 Client received binary/non-JSON');
+        console.log('📥 Client received binary/non-JSON message');
         clientMessages.push(data);
       }
     });
 
     clientWs.on('error', (error) => {
       console.error('❌ Client error:', error.message);
+      reject(error);
     });
 
     clientWs.on('close', () => {
       console.log('🔌 Client disconnected');
     });
-
-    // Cleanup after test
-    setTimeout(() => {
-      if (clientWs) clientWs.close();
-      if (hardwareWs) hardwareWs.close();
-      resolve({ clientMessages, hardwareMessages });
-    }, 5000);
   });
 }
 
@@ -365,7 +328,7 @@ async function testPairingScenario() {
  * Main test runner
  */
 async function runTests() {
-  console.log('🚀 Starting WebSocket tests...\n');
+  console.log('🚀 Starting AI Integration WebSocket Test...\n');
   console.log(`📍 Server URL: ${BASE_URL}`);
   console.log(`📍 WebSocket URL: ${WS_URL}\n`);
 
@@ -373,8 +336,6 @@ async function runTests() {
     // Step 1: Register or login
     const registered = await registerUser();
     if (!registered) {
-      // Try to login with existing credentials
-      // Note: We'll use a fixed test user for login if registration fails
       console.log('⚠️  Using existing credentials for login...');
     }
     
@@ -385,21 +346,19 @@ async function runTests() {
       process.exit(1);
     }
 
-    // Step 3: Test individual connections
-    console.log('\n' + '='.repeat(50));
-    console.log('TEST 1: Client WebSocket Connection');
-    console.log('='.repeat(50));
-    await testClientWebSocket();
+    // Step 3: Test AI integration
+    console.log('\n' + '='.repeat(60));
+    console.log('AI INTEGRATION TEST');
+    console.log('='.repeat(60));
+    console.log('Test Configuration:');
+    console.log('  - Type: leetcode');
+    console.log('  - Language: C++');
+    console.log('  - Image: sample.png');
+    console.log('='.repeat(60) + '\n');
+    
+    await testAIIntegration();
 
-    // Step 4: Test pairing scenario
-    console.log('\n' + '='.repeat(50));
-    console.log('TEST 2: Full Pairing Scenario');
-    console.log('='.repeat(50));
-    await testPairingScenario();
-
-    console.log('\n' + '='.repeat(50));
-    console.log('✅ All tests completed!');
-    console.log('='.repeat(50));
+    console.log('✅ Test completed!');
 
   } catch (error) {
     console.error('\n❌ Test failed:', error);
