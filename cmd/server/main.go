@@ -1,6 +1,7 @@
 package main
 
 import (
+	"lambda_server/internal/auth"
 	"lambda_server/internal/config"
 	"lambda_server/internal/database"
 	"lambda_server/internal/server"
@@ -21,6 +22,9 @@ func main() {
 	cfg := config.LoadConfig()
 
 	database.Connect(cfg)
+
+	// Initialize auth module with config
+	auth.Init(cfg)
 
 	// AutoMigrate the schema
 	err = database.DB.AutoMigrate(&database.User{})

@@ -18,7 +18,7 @@ type Config struct {
 func LoadConfig() *Config {
 	return &Config{
 		GeminiAPIKey: os.Getenv("GOOGLE_API_KEY"),
-		JWTSecret:    os.Getenv("JWT_SECRET"),
+		JWTSecret:    os.Getenv("JWT_SECRET_KEY"),
 		Port:         os.Getenv("PORT"),
 		DBHost:       os.Getenv("DB_HOST"),
 		DBUser:       os.Getenv("DB_USER"),
