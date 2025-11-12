@@ -1,9 +1,9 @@
 package auth
 
 import (
+	"lambda_server/internal/config"
 	"lambda_server/internal/database"
 	"net/http"
-	"os"
 	"time"
 
 	"github.com/gin-gonic/gin"
@@ -22,7 +22,13 @@ type LoginPayload struct {
 	Password string `json:"password" binding:"required"`
 }
 
-var JwtKey = []byte(os.Getenv("JWT_SECRET_KEY"))
+// JwtKey holds the JWT secret key for signing tokens
+var JwtKey []byte
+
+// Init initializes the auth package with configuration
+func Init(cfg *config.Config) {
+	JwtKey = []byte(cfg.JWTSecret)
+}
 
 func Register(c *gin.Context) {
 	var payload RegisterPayload
