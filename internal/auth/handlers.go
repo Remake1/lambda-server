@@ -22,6 +22,16 @@ type LoginPayload struct {
 	Password string `json:"password" binding:"required"`
 }
 
+type RefreshTokenPayload struct {
+	RefreshToken string `json:"refresh_token" binding:"required"`
+}
+
+// CustomClaims extends RegisteredClaims with token type
+type CustomClaims struct {
+	Type string `json:"type"`
+	jwt.RegisteredClaims
+}
+
 // JwtKey holds the JWT secret key for signing tokens
 var JwtKey []byte
 
@@ -81,20 +91,91 @@ func Login(c *gin.Context) {
 		return
 	}
 
-	// Generate JWT
-	expirationTime := time.Now().Add(15 * time.Minute)
-	claims := &jwt.RegisteredClaims{
-		Subject:   user.ID.String(),
-		ExpiresAt: jwt.NewNumericDate(expirationTime),
-		IssuedAt:  jwt.NewNumericDate(time.Now()),
+	// Generate Access Token (15 minutes)
+	accessExpirationTime := time.Now().Add(15 * time.Minute)
+	accessClaims := &CustomClaims{
+		Type: "access",
+		RegisteredClaims: jwt.RegisteredClaims{
+			Subject:   user.ID.String(),
+			ExpiresAt: jwt.NewNumericDate(accessExpirationTime),
+			IssuedAt:  jwt.NewNumericDate(time.Now()),
+		},
 	}
 
-	token := jwt.NewWithClaims(jwt.SigningMethodHS256, claims)
-	tokenString, err := token.SignedString(JwtKey)
+	accessToken := jwt.NewWithClaims(jwt.SigningMethodHS256, accessClaims)
+	accessTokenString, err := accessToken.SignedString(JwtKey)
 	if err != nil {
-		c.JSON(http.StatusInternalServerError, gin.H{"error": "Could not generate token"})
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "Could not generate access token"})
 		return
 	}
 
-	c.JSON(http.StatusOK, gin.H{"token": tokenString})
+	// Generate Refresh Token (2 days)
+	refreshExpirationTime := time.Now().Add(2 * 24 * time.Hour)
+	refreshClaims := &CustomClaims{
+		Type: "refresh",
+		RegisteredClaims: jwt.RegisteredClaims{
+			Subject:   user.ID.String(),
+			ExpiresAt: jwt.NewNumericDate(refreshExpirationTime),
+			IssuedAt:  jwt.NewNumericDate(time.Now()),
+		},
+	}
+
+	refreshToken := jwt.NewWithClaims(jwt.SigningMethodHS256, refreshClaims)
+	refreshTokenString, err := refreshToken.SignedString(JwtKey)
+	if err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "Could not generate refresh token"})
+		return
+	}
+
+	c.JSON(http.StatusOK, gin.H{
+		"access_token":  accessTokenString,
+		"refresh_token": refreshTokenString,
+	})
+}
+
+func RefreshToken(c *gin.Context) {
+	var payload RefreshTokenPayload
+	if err := c.ShouldBindJSON(&payload); err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
+		return
+	}
+
+	// Parse and validate the refresh token
+	claims := &CustomClaims{}
+	token, err := jwt.ParseWithClaims(payload.RefreshToken, claims, func(token *jwt.Token) (interface{}, error) {
+		return JwtKey, nil
+	})
+
+	if err != nil || !token.Valid {
+		c.JSON(http.StatusUnauthorized, gin.H{"error": "Invalid refresh token"})
+		return
+	}
+
+	// Verify token type is "refresh"
+	if claims.Type != "refresh" {
+		c.JSON(http.StatusUnauthorized, gin.H{"error": "Invalid token type"})
+		return
+	}
+
+	// Generate new Access Token (15 minutes)
+	accessExpirationTime := time.Now().Add(15 * time.Minute)
+	accessClaims := &CustomClaims{
+		Type: "access",
+		RegisteredClaims: jwt.RegisteredClaims{
+			Subject:   claims.Subject,
+			ExpiresAt: jwt.NewNumericDate(accessExpirationTime),
+			IssuedAt:  jwt.NewNumericDate(time.Now()),
+		},
+	}
+
+	accessToken := jwt.NewWithClaims(jwt.SigningMethodHS256, accessClaims)
+	accessTokenString, err := accessToken.SignedString(JwtKey)
+	if err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "Could not generate access token"})
+		return
+	}
+
+	c.JSON(http.StatusOK, gin.H{
+		"access_token": accessTokenString,
+	})
 }

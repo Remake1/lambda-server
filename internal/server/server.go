@@ -17,13 +17,11 @@ func NewRouter(hub *websocket.Hub) *gin.Engine {
 		{
 			authRoutes.POST("/register", auth.Register)
 			authRoutes.POST("/login", auth.Login)
+			authRoutes.POST("/refresh", auth.RefreshToken)
 		}
 	}
 
-	// In server setup
 	// Instantiate the WsHandler
-
-	// In server setup
 	wsGroup := router.Group("/ws")
 	{
 		// Client endpoint protected by auth middleware
