@@ -23,13 +23,19 @@ func AuthMiddleware() gin.HandlerFunc {
 			return
 		}
 
-		claims := &jwt.RegisteredClaims{}
+		claims := &auth.CustomClaims{}
 		token, err := jwt.ParseWithClaims(tokenString, claims, func(token *jwt.Token) (interface{}, error) {
 			return auth.JwtKey, nil
 		})
 
 		if err != nil || !token.Valid {
 			c.AbortWithStatusJSON(http.StatusUnauthorized, gin.H{"error": "Invalid token"})
+			return
+		}
+
+		// Verify token type is "access"
+		if claims.Type != "access" {
+			c.AbortWithStatusJSON(http.StatusUnauthorized, gin.H{"error": "Invalid token type"})
 			return
 		}
 

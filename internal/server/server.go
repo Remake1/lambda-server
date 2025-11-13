@@ -17,6 +17,7 @@ func NewRouter(hub *websocket.Hub) *gin.Engine {
 		{
 			authRoutes.POST("/register", auth.Register)
 			authRoutes.POST("/login", auth.Login)
+			authRoutes.POST("/refresh", auth.RefreshToken)
 		}
 	}
 

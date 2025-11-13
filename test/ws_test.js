@@ -127,8 +127,8 @@ async function login() {
     password: TEST_USER.password
   });
 
-  if (response.status === 200 && response.data.token) {
-    authToken = response.data.token;
+  if (response.status === 200 && response.data.access_token) {
+    authToken = response.data.access_token;
     // Extract user ID from JWT token if we don't have it from registration
     if (!clientUserId) {
       clientUserId = decodeJWT(authToken);
@@ -136,7 +136,7 @@ async function login() {
         console.log('✅ User ID extracted from token:', clientUserId);
       }
     }
-    console.log('✅ Login successful, token received');
+    console.log('✅ Login successful, access token received');
     return true;
   } else {
     console.error('❌ Login failed:', response.data);
