@@ -21,10 +21,7 @@ func NewRouter(hub *websocket.Hub) *gin.Engine {
 		}
 	}
 
-	// In server setup
 	// Instantiate the WsHandler
-
-	// In server setup
 	wsGroup := router.Group("/ws")
 	{
 		// Client endpoint protected by auth middleware
