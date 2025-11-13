@@ -1,0 +1,166 @@
+asyncapi: 2.4.0
+info:
+  title: Lambda Server WebSocket API
+  version: 1.0.0
+  description: WebSocket API for Lambda Server - enables communication between clients
+    (browsers) and hardware devices with AI-powered image analysis
+servers:
+  production:
+    url: ws://localhost:3000
+    description: Production WebSocket server
+    protocol: ws
+    variables:
+      host:
+        default: localhost
+        description: Server hostname
+      port:
+        default: "3000"
+        description: Server port
+channels:
+  system/error:
+    description: Error messages sent to clients
+    subscribe:
+      message:
+        $ref: '#/components/messages/AsyncapiErrorMessage'
+  system/status:
+    description: System status notifications (connection/disconnection events)
+    subscribe:
+      message:
+        $ref: '#/components/messages/AsyncapiSystemStatusMessage'
+  ws/client:
+    description: Client WebSocket connection endpoint. Clients connect here to send
+      commands to hardware and receive responses.
+    publish:
+      message:
+        $ref: '#/components/messages/AsyncapiClientCommandMessage'
+    subscribe:
+      message:
+        $ref: '#/components/messages/AsyncapiImageAnalysisResultMessage'
+    bindings:
+      ws:
+        bindingVersion: 0.1.0
+        method: GET
+  ws/hardware/{uuid}:
+    parameters:
+      uuid:
+        description: Client UUID identifying which client this hardware belongs to
+        schema:
+          format: uuid
+          type: string
+    description: Hardware WebSocket connection endpoint. Hardware devices connect
+      here using their client UUID to send images/status and receive commands.
+    publish:
+      message:
+        $ref: '#/components/messages/AsyncapiHardwareStatusMessage'
+    subscribe:
+      message:
+        $ref: '#/components/messages/AsyncapiClientCommandMessage'
+    bindings:
+      ws:
+        bindingVersion: 0.1.0
+        method: GET
+components:
+  schemas:
+    AsyncapiClientCommandMessage:
+      properties:
+        language:
+          description: Programming language preference (C++, C, Python, JavaScript,
+            TypeScript)
+          type: string
+        payload:
+          additionalProperties: {}
+          description: Command payload with optional type and language fields
+          type:
+            - object
+            - "null"
+        type:
+          description: Message type (e.g., 'command', 'request')
+          type: string
+      type: object
+    AsyncapiErrorMessage:
+      properties:
+        payload:
+          description: Error details
+          properties:
+            error_message:
+              description: Detailed error message
+              type: string
+            error_type:
+              description: Type of error (e.g., 'ai_processing_failed')
+              type: string
+          type: object
+        type:
+          description: Message type, always 'error'
+          type: string
+      type: object
+    AsyncapiHardwareStatusMessage:
+      properties:
+        data:
+          additionalProperties: {}
+          description: Additional status data
+          type: object
+        message:
+          description: Additional status message
+          type: string
+        status:
+          description: Status of the hardware device
+          type: string
+      type: object
+    AsyncapiImageAnalysisResultMessage:
+      properties:
+        payload:
+          description: Image analysis result payload
+          properties:
+            ai_result:
+              description: AI analysis result from Gemini service
+              type: string
+            image_size:
+              description: Size of the analyzed image in bytes
+              type: integer
+          type: object
+        type:
+          description: Message type, always 'image_analysis_result'
+          type: string
+      type: object
+    AsyncapiSystemStatusMessage:
+      properties:
+        payload:
+          description: System status payload
+          properties:
+            message:
+              description: System message (e.g., 'hardware_connected', 'client_connected',
+                'hardware_disconnected', 'client_disconnected', 'hardware_not_connected')
+              type: string
+          type: object
+        type:
+          description: Message type, always 'system_status'
+          type: string
+      type: object
+  messages:
+    AsyncapiClientCommandMessage:
+      payload:
+        $ref: '#/components/schemas/AsyncapiClientCommandMessage'
+      summary: Hardware Command
+      description: Commands and requests sent from server/client to hardware
+    AsyncapiErrorMessage:
+      payload:
+        $ref: '#/components/schemas/AsyncapiErrorMessage'
+      summary: Error Message
+      description: Error messages sent to clients when operations fail
+    AsyncapiHardwareStatusMessage:
+      payload:
+        $ref: '#/components/schemas/AsyncapiHardwareStatusMessage'
+      summary: Hardware Status/Image
+      description: Status updates and image data sent from hardware to server. Images
+        are sent as binary messages, status updates as JSON text messages.
+    AsyncapiImageAnalysisResultMessage:
+      payload:
+        $ref: '#/components/schemas/AsyncapiImageAnalysisResultMessage'
+      summary: Server Response
+      description: Responses, status updates, and AI analysis results sent from server
+        to client
+    AsyncapiSystemStatusMessage:
+      payload:
+        $ref: '#/components/schemas/AsyncapiSystemStatusMessage'
+      summary: System Status
+      description: System status notifications sent to clients and hardware
