@@ -24,7 +24,7 @@ lib-cov
 coverage
 *.lcov
 
-# nyc test coverage
+# nyc testing coverage
 .nyc_output
 
 # Grunt intermediate storage (https://gruntjs.com/creating-plugins#storing-task-files)
@@ -43,7 +43,7 @@ build/Release
 node_modules/
 jspm_packages/
 
-test/node_modules/
+testing/node_modules/
 
 # Snowpack dependency directory (https://snowpack.dev/)
 web_modules/
@@ -143,7 +143,7 @@ dist
 *.so
 *.dylib
 
-# Test binary, built with `go test -c`
+# Test binary, built with `go testing -c`
 *.test
 
 # Output of the go coverage tool, specifically when used with LiteIDE

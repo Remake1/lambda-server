@@ -6,6 +6,8 @@ import (
 	"lambda_server/internal/websocket"
 
 	"github.com/gin-gonic/gin"
+	swaggerfiles "github.com/swaggo/files"
+	ginSwagger "github.com/swaggo/gin-swagger"
 )
 
 func NewRouter(hub *websocket.Hub) *gin.Engine {
@@ -37,6 +39,9 @@ func NewRouter(hub *websocket.Hub) *gin.Engine {
 			hub.ServeHardwareWs(c)
 		})
 	}
+
+	// Swagger documentation route
+	router.GET("/swagger/*any", ginSwagger.WrapHandler(swaggerfiles.Handler))
 
 	return router
 }

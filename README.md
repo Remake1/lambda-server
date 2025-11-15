@@ -23,7 +23,24 @@ Start server:
 go run ./cmd/server 
 ```
 
-### Protocol
+### Documentation
+
+#### Swagger UI URL: `http://localhost:3000/swagger/index.html`
+
+#### Generate documentation:
+```shell
+swag init -g ./cmd/server/main.go -o ./docs
+```
+
+### API Routes
+
+| Type | Path           |
+|------|----------------|
+| POST | /auth/register |
+| POST | /auth/login    |
+| POST | /auth/refresh  |
+
+### WebSocket Protocol
 
 | Flow    | Sender   | Receiver  | Type                    | Example Payload (JSON)              |                                                       |
 |---------|----------|-----------|-------------------------|-------------------------------------|-------------------------------------------------------|

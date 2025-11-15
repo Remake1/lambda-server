@@ -31,6 +31,16 @@ var upgrader = websocket.Upgrader{
 // ServeClientWs is the Gin handler for the authenticated client's
 // WebSocket connection.
 // It retrieves the user's UUID from the AuthMiddleware.
+// @Summary      Connect client WebSocket
+// @Description  Establish a WebSocket connection for authenticated clients
+// @Tags         websocket
+// @Accept       json
+// @Produce      json
+// @Security     BearerAuth
+// @Success      101  "Switching Protocols"
+// @Failure      401  {object}  map[string]string  "Unauthorized"
+// @Failure      500  {object}  map[string]string  "Internal server error"
+// @Router       /ws/client [get]
 func (h *Hub) ServeClientWs(c *gin.Context) {
 	// --- Extract data from Gin Context FIRST ---
 	// 1. Get the Client UUID from the context.
@@ -72,6 +82,16 @@ func (h *Hub) ServeClientWs(c *gin.Context) {
 
 // ServeHardwareWs is the Gin handler for the hardware's WebSocket
 // connection. It retrieves the Client UUID from the URL path.
+// @Summary      Connect hardware WebSocket
+// @Description  Establish a WebSocket connection for hardware devices using client UUID
+// @Tags         websocket
+// @Accept       json
+// @Produce      json
+// @Param        uuid  path      string  true  "Client UUID"
+// @Success      101   "Switching Protocols"
+// @Failure      400   {object}  map[string]string  "Bad request"
+// @Failure      500   {object}  map[string]string  "Internal server error"
+// @Router       /ws/hardware/{uuid} [get]
 func (h *Hub) ServeHardwareWs(c *gin.Context) {
 	// --- Extract data from Gin Context FIRST ---
 	// 1. Get the Client UUID from the path parameter.
