@@ -23,7 +23,15 @@ Start server:
 go run ./cmd/server 
 ```
 
-### Protocol
+### API Routes
+
+| Type | Path           |
+|------|----------------|
+| POST | /auth/register |
+| POST | /auth/login    |
+| POST | /auth/refresh  |
+
+### WebSocket Protocol
 
 | Flow    | Sender   | Receiver  | Type                    | Example Payload (JSON)              |                                                       |
 |---------|----------|-----------|-------------------------|-------------------------------------|-------------------------------------------------------|
