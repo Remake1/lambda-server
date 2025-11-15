@@ -23,6 +23,15 @@ Start server:
 go run ./cmd/server 
 ```
 
+### Documentation
+
+#### Swagger UI URL: `http://localhost:3000/swagger/index.html`
+
+#### Generate documentation:
+```shell
+swag init -g ./cmd/server/main.go -o ./docs
+```
+
 ### API Routes
 
 | Type | Path           |
