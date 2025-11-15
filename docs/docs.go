@@ -9,11 +9,9 @@ const docTemplate = `{
     "info": {
         "description": "{{escape .Description}}",
         "title": "{{.Title}}",
-        "termsOfService": "http://swagger.io/terms/",
         "contact": {
-            "name": "API Support",
-            "url": "http://www.swagger.io/support",
-            "email": "support@swagger.io"
+            "name": "Github link",
+            "url": "https://github.com/Remake1/lambda-server"
         },
         "license": {
             "name": "Apache 2.0",

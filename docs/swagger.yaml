@@ -34,14 +34,12 @@ definitions:
 host: localhost:3000
 info:
   contact:
-    email: support@swagger.io
-    name: API Support
-    url: http://www.swagger.io/support
+    name: Github link
+    url: https://github.com/Remake1/lambda-server
   description: This is a Lambda Server API with authentication and WebSocket support.
   license:
     name: Apache 2.0
     url: http://www.apache.org/licenses/LICENSE-2.0.html
-  termsOfService: http://swagger.io/terms/
   title: Lambda Server API
   version: "1.0"
 paths:

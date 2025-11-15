@@ -3,11 +3,9 @@
     "info": {
         "description": "This is a Lambda Server API with authentication and WebSocket support.",
         "title": "Lambda Server API",
-        "termsOfService": "http://swagger.io/terms/",
         "contact": {
-            "name": "API Support",
-            "url": "http://www.swagger.io/support",
-            "email": "support@swagger.io"
+            "name": "Github link",
+            "url": "https://github.com/Remake1/lambda-server"
         },
         "license": {
             "name": "Apache 2.0",
