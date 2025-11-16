@@ -31,6 +31,13 @@ definitions:
     - password
     - username
     type: object
+  auth.UserInfoResponse:
+    properties:
+      email:
+        type: string
+      username:
+        type: string
+    type: object
 host: localhost:3000
 info:
   contact:
@@ -84,6 +91,41 @@ paths:
               type: string
             type: object
       summary: Login user
+      tags:
+      - auth
+  /auth/me:
+    get:
+      consumes:
+      - application/json
+      description: Get username and email of the authenticated user using access token
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: User information retrieved successfully
+          schema:
+            $ref: '#/definitions/auth.UserInfoResponse'
+        "401":
+          description: Unauthorized - Invalid or missing token
+          schema:
+            additionalProperties:
+              type: string
+            type: object
+        "404":
+          description: User not found
+          schema:
+            additionalProperties:
+              type: string
+            type: object
+        "500":
+          description: Internal server error
+          schema:
+            additionalProperties:
+              type: string
+            type: object
+      security:
+      - BearerAuth: []
+      summary: Get user information
       tags:
       - auth
   /auth/refresh:

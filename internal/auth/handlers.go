@@ -8,6 +8,7 @@ import (
 
 	"github.com/gin-gonic/gin"
 	"github.com/golang-jwt/jwt/v5"
+	"github.com/google/uuid"
 	"golang.org/x/crypto/bcrypt"
 )
 
@@ -212,5 +213,59 @@ func RefreshToken(c *gin.Context) {
 
 	c.JSON(http.StatusOK, gin.H{
 		"access_token": accessTokenString,
+	})
+}
+
+// UserInfoResponse represents the user information response
+type UserInfoResponse struct {
+	Username string `json:"username"`
+	Email    string `json:"email"`
+}
+
+// GetUserInfo godoc
+// @Summary      Get user information
+// @Description  Get username and email of the authenticated user using access token
+// @Tags         auth
+// @Accept       json
+// @Produce      json
+// @Security     BearerAuth
+// @Success      200  {object}  UserInfoResponse  "User information retrieved successfully"
+// @Failure      401  {object}  map[string]string  "Unauthorized - Invalid or missing token"
+// @Failure      404  {object}  map[string]string  "User not found"
+// @Failure      500  {object}  map[string]string  "Internal server error"
+// @Router       /auth/me [get]
+func GetUserInfo(c *gin.Context) {
+	// Get userID from context (set by AuthMiddleware)
+	userID, exists := c.Get("userID")
+	if !exists {
+		c.JSON(http.StatusUnauthorized, gin.H{"error": "User ID not found in context"})
+		return
+	}
+
+	userIDStr, ok := userID.(string)
+	if !ok {
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "Invalid user ID type"})
+		return
+	}
+
+	// Parse UUID from string
+	userUUID, err := uuid.Parse(userIDStr)
+	if err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "Invalid user ID format"})
+		return
+	}
+
+	// Fetch user from database
+	var user database.User
+	result := database.DB.Where("id = ?", userUUID).First(&user)
+	if result.Error != nil {
+		c.JSON(http.StatusNotFound, gin.H{"error": "User not found"})
+		return
+	}
+
+	// Return user information
+	c.JSON(http.StatusOK, UserInfoResponse{
+		Username: user.Username,
+		Email:    user.Email,
 	})
 }
