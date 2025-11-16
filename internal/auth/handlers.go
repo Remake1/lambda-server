@@ -8,6 +8,7 @@ import (
 
 	"github.com/gin-gonic/gin"
 	"github.com/golang-jwt/jwt/v5"
+	"github.com/google/uuid"
 	"golang.org/x/crypto/bcrypt"
 )
 
@@ -24,6 +25,23 @@ type LoginPayload struct {
 
 type RefreshTokenPayload struct {
 	RefreshToken string `json:"refresh_token" binding:"required"`
+}
+
+// RegisterResponse represents the registration response
+type RegisterResponse struct {
+	Message string    `json:"message"`
+	UserID  uuid.UUID `json:"user_id"`
+}
+
+// LoginResponse represents the login response
+type LoginResponse struct {
+	AccessToken  string `json:"access_token"`
+	RefreshToken string `json:"refresh_token"`
+}
+
+// RefreshTokenResponse represents the refresh token response
+type RefreshTokenResponse struct {
+	AccessToken string `json:"access_token"`
 }
 
 // CustomClaims extends RegisteredClaims with token type
@@ -47,7 +65,7 @@ func Init(cfg *config.Config) {
 // @Accept       json
 // @Produce      json
 // @Param        payload  body      RegisterPayload  true  "Registration payload"
-// @Success      201      {object}  map[string]interface{}  "User registered successfully"
+// @Success      201      {object}  RegisterResponse  "User registered successfully"
 // @Failure      400      {object}  map[string]string  "Bad request"
 // @Failure      500      {object}  map[string]string  "Internal server error"
 // @Router       /auth/register [post]
@@ -78,7 +96,10 @@ func Register(c *gin.Context) {
 		return
 	}
 
-	c.JSON(http.StatusCreated, gin.H{"message": "User registered successfully", "user_id": newUser.ID})
+	c.JSON(http.StatusCreated, RegisterResponse{
+		Message: "User registered successfully",
+		UserID:  newUser.ID,
+	})
 }
 
 // Login godoc
@@ -88,7 +109,7 @@ func Register(c *gin.Context) {
 // @Accept       json
 // @Produce      json
 // @Param        payload  body      LoginPayload  true  "Login payload"
-// @Success      200      {object}  map[string]string  "Login successful"
+// @Success      200      {object}  LoginResponse  "Login successful"
 // @Failure      400      {object}  map[string]string  "Bad request"
 // @Failure      401      {object}  map[string]string  "Invalid credentials"
 // @Failure      500      {object}  map[string]string  "Internal server error"
@@ -150,9 +171,9 @@ func Login(c *gin.Context) {
 		return
 	}
 
-	c.JSON(http.StatusOK, gin.H{
-		"access_token":  accessTokenString,
-		"refresh_token": refreshTokenString,
+	c.JSON(http.StatusOK, LoginResponse{
+		AccessToken:  accessTokenString,
+		RefreshToken: refreshTokenString,
 	})
 }
 
@@ -163,7 +184,7 @@ func Login(c *gin.Context) {
 // @Accept       json
 // @Produce      json
 // @Param        payload  body      RefreshTokenPayload  true  "Refresh token payload"
-// @Success      200      {object}  map[string]string  "New access token generated"
+// @Success      200      {object}  RefreshTokenResponse  "New access token generated"
 // @Failure      400      {object}  map[string]string  "Bad request"
 // @Failure      401      {object}  map[string]string  "Invalid refresh token"
 // @Failure      500      {object}  map[string]string  "Internal server error"
@@ -210,7 +231,61 @@ func RefreshToken(c *gin.Context) {
 		return
 	}
 
-	c.JSON(http.StatusOK, gin.H{
-		"access_token": accessTokenString,
+	c.JSON(http.StatusOK, RefreshTokenResponse{
+		AccessToken: accessTokenString,
+	})
+}
+
+// UserInfoResponse represents the user information response
+type UserInfoResponse struct {
+	Username string `json:"username"`
+	Email    string `json:"email"`
+}
+
+// GetUserInfo godoc
+// @Summary      Get user information
+// @Description  Get username and email of the authenticated user using access token
+// @Tags         auth
+// @Accept       json
+// @Produce      json
+// @Security     BearerAuth
+// @Success      200  {object}  UserInfoResponse  "User information retrieved successfully"
+// @Failure      401  {object}  map[string]string  "Unauthorized - Invalid or missing token"
+// @Failure      404  {object}  map[string]string  "User not found"
+// @Failure      500  {object}  map[string]string  "Internal server error"
+// @Router       /auth/me [get]
+func GetUserInfo(c *gin.Context) {
+	// Get userID from context (set by AuthMiddleware)
+	userID, exists := c.Get("userID")
+	if !exists {
+		c.JSON(http.StatusUnauthorized, gin.H{"error": "User ID not found in context"})
+		return
+	}
+
+	userIDStr, ok := userID.(string)
+	if !ok {
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "Invalid user ID type"})
+		return
+	}
+
+	// Parse UUID from string
+	userUUID, err := uuid.Parse(userIDStr)
+	if err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "Invalid user ID format"})
+		return
+	}
+
+	// Fetch user from database
+	var user database.User
+	result := database.DB.Where("id = ?", userUUID).First(&user)
+	if result.Error != nil {
+		c.JSON(http.StatusNotFound, gin.H{"error": "User not found"})
+		return
+	}
+
+	// Return user information
+	c.JSON(http.StatusOK, UserInfoResponse{
+		Username: user.Username,
+		Email:    user.Email,
 	})
 }

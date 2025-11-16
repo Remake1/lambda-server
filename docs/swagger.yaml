@@ -10,12 +10,24 @@ definitions:
     - email
     - password
     type: object
+  auth.LoginResponse:
+    properties:
+      access_token:
+        type: string
+      refresh_token:
+        type: string
+    type: object
   auth.RefreshTokenPayload:
     properties:
       refresh_token:
         type: string
     required:
     - refresh_token
+    type: object
+  auth.RefreshTokenResponse:
+    properties:
+      access_token:
+        type: string
     type: object
   auth.RegisterPayload:
     properties:
@@ -30,6 +42,20 @@ definitions:
     - email
     - password
     - username
+    type: object
+  auth.RegisterResponse:
+    properties:
+      message:
+        type: string
+      user_id:
+        type: string
+    type: object
+  auth.UserInfoResponse:
+    properties:
+      email:
+        type: string
+      username:
+        type: string
     type: object
 host: localhost:3000
 info:
@@ -62,9 +88,7 @@ paths:
         "200":
           description: Login successful
           schema:
-            additionalProperties:
-              type: string
-            type: object
+            $ref: '#/definitions/auth.LoginResponse'
         "400":
           description: Bad request
           schema:
@@ -86,6 +110,41 @@ paths:
       summary: Login user
       tags:
       - auth
+  /auth/me:
+    get:
+      consumes:
+      - application/json
+      description: Get username and email of the authenticated user using access token
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: User information retrieved successfully
+          schema:
+            $ref: '#/definitions/auth.UserInfoResponse'
+        "401":
+          description: Unauthorized - Invalid or missing token
+          schema:
+            additionalProperties:
+              type: string
+            type: object
+        "404":
+          description: User not found
+          schema:
+            additionalProperties:
+              type: string
+            type: object
+        "500":
+          description: Internal server error
+          schema:
+            additionalProperties:
+              type: string
+            type: object
+      security:
+      - BearerAuth: []
+      summary: Get user information
+      tags:
+      - auth
   /auth/refresh:
     post:
       consumes:
@@ -104,9 +163,7 @@ paths:
         "200":
           description: New access token generated
           schema:
-            additionalProperties:
-              type: string
-            type: object
+            $ref: '#/definitions/auth.RefreshTokenResponse'
         "400":
           description: Bad request
           schema:
@@ -146,8 +203,7 @@ paths:
         "201":
           description: User registered successfully
           schema:
-            additionalProperties: true
-            type: object
+            $ref: '#/definitions/auth.RegisterResponse'
         "400":
           description: Bad request
           schema:
