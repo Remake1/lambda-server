@@ -44,10 +44,7 @@
                     "200": {
                         "description": "Login successful",
                         "schema": {
-                            "type": "object",
-                            "additionalProperties": {
-                                "type": "string"
-                            }
+                            "$ref": "#/definitions/auth.LoginResponse"
                         }
                     },
                     "400": {
@@ -163,10 +160,7 @@
                     "200": {
                         "description": "New access token generated",
                         "schema": {
-                            "type": "object",
-                            "additionalProperties": {
-                                "type": "string"
-                            }
+                            "$ref": "#/definitions/auth.RefreshTokenResponse"
                         }
                     },
                     "400": {
@@ -227,8 +221,7 @@
                     "201": {
                         "description": "User registered successfully",
                         "schema": {
-                            "type": "object",
-                            "additionalProperties": true
+                            "$ref": "#/definitions/auth.RegisterResponse"
                         }
                     },
                     "400": {
@@ -359,6 +352,17 @@
                 }
             }
         },
+        "auth.LoginResponse": {
+            "type": "object",
+            "properties": {
+                "access_token": {
+                    "type": "string"
+                },
+                "refresh_token": {
+                    "type": "string"
+                }
+            }
+        },
         "auth.RefreshTokenPayload": {
             "type": "object",
             "required": [
@@ -366,6 +370,14 @@
             ],
             "properties": {
                 "refresh_token": {
+                    "type": "string"
+                }
+            }
+        },
+        "auth.RefreshTokenResponse": {
+            "type": "object",
+            "properties": {
+                "access_token": {
                     "type": "string"
                 }
             }
@@ -386,6 +398,17 @@
                     "minLength": 8
                 },
                 "username": {
+                    "type": "string"
+                }
+            }
+        },
+        "auth.RegisterResponse": {
+            "type": "object",
+            "properties": {
+                "message": {
+                    "type": "string"
+                },
+                "user_id": {
                     "type": "string"
                 }
             }

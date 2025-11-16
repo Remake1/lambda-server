@@ -50,10 +50,7 @@ const docTemplate = `{
                     "200": {
                         "description": "Login successful",
                         "schema": {
-                            "type": "object",
-                            "additionalProperties": {
-                                "type": "string"
-                            }
+                            "$ref": "#/definitions/auth.LoginResponse"
                         }
                     },
                     "400": {
@@ -169,10 +166,7 @@ const docTemplate = `{
                     "200": {
                         "description": "New access token generated",
                         "schema": {
-                            "type": "object",
-                            "additionalProperties": {
-                                "type": "string"
-                            }
+                            "$ref": "#/definitions/auth.RefreshTokenResponse"
                         }
                     },
                     "400": {
@@ -233,8 +227,7 @@ const docTemplate = `{
                     "201": {
                         "description": "User registered successfully",
                         "schema": {
-                            "type": "object",
-                            "additionalProperties": true
+                            "$ref": "#/definitions/auth.RegisterResponse"
                         }
                     },
                     "400": {
@@ -365,6 +358,17 @@ const docTemplate = `{
                 }
             }
         },
+        "auth.LoginResponse": {
+            "type": "object",
+            "properties": {
+                "access_token": {
+                    "type": "string"
+                },
+                "refresh_token": {
+                    "type": "string"
+                }
+            }
+        },
         "auth.RefreshTokenPayload": {
             "type": "object",
             "required": [
@@ -372,6 +376,14 @@ const docTemplate = `{
             ],
             "properties": {
                 "refresh_token": {
+                    "type": "string"
+                }
+            }
+        },
+        "auth.RefreshTokenResponse": {
+            "type": "object",
+            "properties": {
+                "access_token": {
                     "type": "string"
                 }
             }
@@ -392,6 +404,17 @@ const docTemplate = `{
                     "minLength": 8
                 },
                 "username": {
+                    "type": "string"
+                }
+            }
+        },
+        "auth.RegisterResponse": {
+            "type": "object",
+            "properties": {
+                "message": {
+                    "type": "string"
+                },
+                "user_id": {
                     "type": "string"
                 }
             }

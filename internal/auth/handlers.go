@@ -27,6 +27,23 @@ type RefreshTokenPayload struct {
 	RefreshToken string `json:"refresh_token" binding:"required"`
 }
 
+// RegisterResponse represents the registration response
+type RegisterResponse struct {
+	Message string    `json:"message"`
+	UserID  uuid.UUID `json:"user_id"`
+}
+
+// LoginResponse represents the login response
+type LoginResponse struct {
+	AccessToken  string `json:"access_token"`
+	RefreshToken string `json:"refresh_token"`
+}
+
+// RefreshTokenResponse represents the refresh token response
+type RefreshTokenResponse struct {
+	AccessToken string `json:"access_token"`
+}
+
 // CustomClaims extends RegisteredClaims with token type
 type CustomClaims struct {
 	Type string `json:"type"`
@@ -48,7 +65,7 @@ func Init(cfg *config.Config) {
 // @Accept       json
 // @Produce      json
 // @Param        payload  body      RegisterPayload  true  "Registration payload"
-// @Success      201      {object}  map[string]interface{}  "User registered successfully"
+// @Success      201      {object}  RegisterResponse  "User registered successfully"
 // @Failure      400      {object}  map[string]string  "Bad request"
 // @Failure      500      {object}  map[string]string  "Internal server error"
 // @Router       /auth/register [post]
@@ -79,7 +96,10 @@ func Register(c *gin.Context) {
 		return
 	}
 
-	c.JSON(http.StatusCreated, gin.H{"message": "User registered successfully", "user_id": newUser.ID})
+	c.JSON(http.StatusCreated, RegisterResponse{
+		Message: "User registered successfully",
+		UserID:  newUser.ID,
+	})
 }
 
 // Login godoc
@@ -89,7 +109,7 @@ func Register(c *gin.Context) {
 // @Accept       json
 // @Produce      json
 // @Param        payload  body      LoginPayload  true  "Login payload"
-// @Success      200      {object}  map[string]string  "Login successful"
+// @Success      200      {object}  LoginResponse  "Login successful"
 // @Failure      400      {object}  map[string]string  "Bad request"
 // @Failure      401      {object}  map[string]string  "Invalid credentials"
 // @Failure      500      {object}  map[string]string  "Internal server error"
@@ -151,9 +171,9 @@ func Login(c *gin.Context) {
 		return
 	}
 
-	c.JSON(http.StatusOK, gin.H{
-		"access_token":  accessTokenString,
-		"refresh_token": refreshTokenString,
+	c.JSON(http.StatusOK, LoginResponse{
+		AccessToken:  accessTokenString,
+		RefreshToken: refreshTokenString,
 	})
 }
 
@@ -164,7 +184,7 @@ func Login(c *gin.Context) {
 // @Accept       json
 // @Produce      json
 // @Param        payload  body      RefreshTokenPayload  true  "Refresh token payload"
-// @Success      200      {object}  map[string]string  "New access token generated"
+// @Success      200      {object}  RefreshTokenResponse  "New access token generated"
 // @Failure      400      {object}  map[string]string  "Bad request"
 // @Failure      401      {object}  map[string]string  "Invalid refresh token"
 // @Failure      500      {object}  map[string]string  "Internal server error"
@@ -211,8 +231,8 @@ func RefreshToken(c *gin.Context) {
 		return
 	}
 
-	c.JSON(http.StatusOK, gin.H{
-		"access_token": accessTokenString,
+	c.JSON(http.StatusOK, RefreshTokenResponse{
+		AccessToken: accessTokenString,
 	})
 }
 

@@ -10,12 +10,24 @@ definitions:
     - email
     - password
     type: object
+  auth.LoginResponse:
+    properties:
+      access_token:
+        type: string
+      refresh_token:
+        type: string
+    type: object
   auth.RefreshTokenPayload:
     properties:
       refresh_token:
         type: string
     required:
     - refresh_token
+    type: object
+  auth.RefreshTokenResponse:
+    properties:
+      access_token:
+        type: string
     type: object
   auth.RegisterPayload:
     properties:
@@ -30,6 +42,13 @@ definitions:
     - email
     - password
     - username
+    type: object
+  auth.RegisterResponse:
+    properties:
+      message:
+        type: string
+      user_id:
+        type: string
     type: object
   auth.UserInfoResponse:
     properties:
@@ -69,9 +88,7 @@ paths:
         "200":
           description: Login successful
           schema:
-            additionalProperties:
-              type: string
-            type: object
+            $ref: '#/definitions/auth.LoginResponse'
         "400":
           description: Bad request
           schema:
@@ -146,9 +163,7 @@ paths:
         "200":
           description: New access token generated
           schema:
-            additionalProperties:
-              type: string
-            type: object
+            $ref: '#/definitions/auth.RefreshTokenResponse'
         "400":
           description: Bad request
           schema:
@@ -188,8 +203,7 @@ paths:
         "201":
           description: User registered successfully
           schema:
-            additionalProperties: true
-            type: object
+            $ref: '#/definitions/auth.RegisterResponse'
         "400":
           description: Bad request
           schema:
