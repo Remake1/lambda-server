@@ -4,7 +4,7 @@
  * WebSocket Test Script for Lambda Server - AI Integration Test
  * 
  * This script tests the AI integration with Gemini API:
- * 1. Registers a testing user (or uses existing)
+ * 1. Registers a test user (or uses existing)
  * 2. Logs in to get JWT token
  * 3. Connects client WebSocket (authenticated)
  * 4. Sends message with type="leetcode" and language="C++"
@@ -75,10 +75,10 @@ function makeRequest(options, data = null) {
 }
 
 /**
- * Register a testing user
+ * Register a test user
  */
 async function registerUser() {
-  console.log('📝 Registering testing user...');
+  console.log('📝 Registering test user...');
   const response = await makeRequest({
     method: 'POST',
     path: '/api/v1/auth/register'
@@ -166,7 +166,7 @@ async function testAIIntegration() {
   console.log('\n🧪 Testing AI Integration with Gemini API...\n');
   
   if (!clientUserId) {
-    console.error('❌ Cannot testing AI integration: clientUserId not available');
+    console.error('❌ Cannot test AI integration: clientUserId not available');
     return;
   }
 
@@ -325,7 +325,7 @@ async function testAIIntegration() {
 }
 
 /**
- * Main testing runner
+ * Main test runner
  */
 async function runTests() {
   console.log('🚀 Starting AI Integration WebSocket Test...\n');
