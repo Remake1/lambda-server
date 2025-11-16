@@ -1,6 +1,7 @@
 package main
 
 import (
+	"lambda_server/docs"
 	"lambda_server/internal/auth"
 	"lambda_server/internal/config"
 	"lambda_server/internal/database"
@@ -12,6 +13,24 @@ import (
 	"github.com/joho/godotenv"
 )
 
+// @title           Lambda Server API
+// @version         1.0
+// @description     This is a Lambda Server API with authentication and WebSocket support.
+
+// @contact.name   Github link
+// @contact.url    https://github.com/Remake1/lambda-server
+
+// @license.name  Apache 2.0
+// @license.url   http://www.apache.org/licenses/LICENSE-2.0.html
+
+// @host      localhost:3000
+// @BasePath  /api/v1
+
+// @securityDefinitions.apikey BearerAuth
+// @in header
+// @name Authorization
+// @description Type "Bearer" followed by a space and JWT token.
+
 func main() {
 	// Load.env file into environment variables
 	err := godotenv.Load()
@@ -20,6 +39,10 @@ func main() {
 	}
 
 	cfg := config.LoadConfig()
+
+	// Initialize Swagger docs
+	docs.SwaggerInfo.BasePath = "/api/v1"
+	docs.SwaggerInfo.Host = "localhost:3000"
 
 	database.Connect(cfg)
 
@@ -53,7 +76,7 @@ func main() {
 
 	port := cfg.Port
 	if port == "" {
-		port = "8080" // Default port if not specified
+		port = "3000" // Default port if not specified
 	}
 	log.Printf("Server starting on port %s", port)
 	if err := router.Run(":" + port); err != nil {

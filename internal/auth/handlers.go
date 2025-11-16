@@ -40,6 +40,17 @@ func Init(cfg *config.Config) {
 	JwtKey = []byte(cfg.JWTSecret)
 }
 
+// Register godoc
+// @Summary      Register a new user
+// @Description  Register a new user with username, email, and password
+// @Tags         auth
+// @Accept       json
+// @Produce      json
+// @Param        payload  body      RegisterPayload  true  "Registration payload"
+// @Success      201      {object}  map[string]interface{}  "User registered successfully"
+// @Failure      400      {object}  map[string]string  "Bad request"
+// @Failure      500      {object}  map[string]string  "Internal server error"
+// @Router       /auth/register [post]
 func Register(c *gin.Context) {
 	var payload RegisterPayload
 	if err := c.ShouldBindJSON(&payload); err != nil {
@@ -70,6 +81,18 @@ func Register(c *gin.Context) {
 	c.JSON(http.StatusCreated, gin.H{"message": "User registered successfully", "user_id": newUser.ID})
 }
 
+// Login godoc
+// @Summary      Login user
+// @Description  Authenticate user with email and password, returns access and refresh tokens
+// @Tags         auth
+// @Accept       json
+// @Produce      json
+// @Param        payload  body      LoginPayload  true  "Login payload"
+// @Success      200      {object}  map[string]string  "Login successful"
+// @Failure      400      {object}  map[string]string  "Bad request"
+// @Failure      401      {object}  map[string]string  "Invalid credentials"
+// @Failure      500      {object}  map[string]string  "Internal server error"
+// @Router       /auth/login [post]
 func Login(c *gin.Context) {
 	var payload LoginPayload
 	if err := c.ShouldBindJSON(&payload); err != nil {
@@ -133,6 +156,18 @@ func Login(c *gin.Context) {
 	})
 }
 
+// RefreshToken godoc
+// @Summary      Refresh access token
+// @Description  Generate a new access token using a valid refresh token
+// @Tags         auth
+// @Accept       json
+// @Produce      json
+// @Param        payload  body      RefreshTokenPayload  true  "Refresh token payload"
+// @Success      200      {object}  map[string]string  "New access token generated"
+// @Failure      400      {object}  map[string]string  "Bad request"
+// @Failure      401      {object}  map[string]string  "Invalid refresh token"
+// @Failure      500      {object}  map[string]string  "Internal server error"
+// @Router       /auth/refresh [post]
 func RefreshToken(c *gin.Context) {
 	var payload RefreshTokenPayload
 	if err := c.ShouldBindJSON(&payload); err != nil {
