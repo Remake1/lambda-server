@@ -2,9 +2,9 @@ package server
 
 import (
 	"lambda_server/internal/auth"
-
 	"lambda_server/internal/websocket"
 
+	"github.com/gin-contrib/cors"
 	"github.com/gin-gonic/gin"
 	swaggerfiles "github.com/swaggo/files"
 	ginSwagger "github.com/swaggo/gin-swagger"
@@ -12,6 +12,9 @@ import (
 
 func NewRouter(hub *websocket.Hub) *gin.Engine {
 	router := gin.Default() // gin.Default() comes with Logger and Recovery middleware.
+
+	// Add CORS middleware
+	router.Use(cors.Default())
 
 	api := router.Group("/api/v1")
 	{
