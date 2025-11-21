@@ -3,6 +3,7 @@ package server
 import (
 	"lambda_server/internal/auth"
 	"lambda_server/internal/websocket"
+	"time"
 
 	"github.com/gin-contrib/cors"
 	"github.com/gin-gonic/gin"
@@ -14,7 +15,14 @@ func NewRouter(hub *websocket.Hub) *gin.Engine {
 	router := gin.Default() // gin.Default() comes with Logger and Recovery middleware.
 
 	// Add CORS middleware
-	router.Use(cors.Default())
+	router.Use(cors.New(cors.Config{
+		AllowOrigins:     []string{"http://localhost:5173"},
+		AllowMethods:     []string{"GET", "POST", "PUT", "PATCH", "DELETE", "OPTIONS"},
+		AllowHeaders:     []string{"Origin", "Content-Type", "Accept", "Authorization"},
+		ExposeHeaders:    []string{"Content-Length"},
+		AllowCredentials: true,
+		MaxAge:           12 * time.Hour,
+	}))
 
 	api := router.Group("/api/v1")
 	{
