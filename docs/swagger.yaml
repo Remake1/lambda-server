@@ -224,6 +224,12 @@ paths:
       consumes:
       - application/json
       description: Establish a WebSocket connection for authenticated clients
+      parameters:
+      - description: JWT token for authentication
+        in: query
+        name: token
+        required: true
+        type: string
       produces:
       - application/json
       responses:
@@ -241,8 +247,6 @@ paths:
             additionalProperties:
               type: string
             type: object
-      security:
-      - BearerAuth: []
       summary: Connect client WebSocket
       tags:
       - websocket

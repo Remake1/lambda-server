@@ -148,7 +148,7 @@ async function login() {
  * Read sample.png image file
  */
 function readSampleImage() {
-  const imagePath = path.join(__dirname, 'sample.png');
+  const imagePath = path.join(__dirname, 'sample1.png');
   try {
     const imageData = fs.readFileSync(imagePath);
     console.log(`✅ Loaded sample.png (${imageData.length} bytes)`);
@@ -181,11 +181,7 @@ async function testAIIntegration() {
 
     // Step 1: Connect client
     console.log('1️⃣  Connecting client WebSocket...');
-    clientWs = new WebSocket(`${WS_URL}/ws/client`, {
-      headers: {
-        'Authorization': `Bearer ${authToken}`
-      }
-    });
+    clientWs = new WebSocket(`${WS_URL}/ws/client?token=${authToken}`);
 
     clientWs.on('open', () => {
       console.log('✅ Client WebSocket connected');
@@ -368,4 +364,3 @@ async function runTests() {
 
 // Run tests
 runTests();
-
