@@ -36,7 +36,7 @@ var upgrader = websocket.Upgrader{
 // @Tags         websocket
 // @Accept       json
 // @Produce      json
-// @Security     BearerAuth
+// @Param        token query     string  true  "JWT token for authentication"
 // @Success      101  "Switching Protocols"
 // @Failure      401  {object}  map[string]string  "Unauthorized"
 // @Failure      500  {object}  map[string]string  "Internal server error"

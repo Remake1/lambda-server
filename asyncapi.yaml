@@ -36,10 +36,20 @@ channels:
     subscribe:
       message:
         $ref: '#/components/messages/AsyncapiImageAnalysisResultMessage'
+    parameters:
+      token:
+        description: JWT token for authentication
+        schema:
+          type: string
     bindings:
       ws:
         bindingVersion: 0.1.0
         method: GET
+        query:
+          type: object
+          properties:
+            token:
+              type: string
   ws/hardware/{uuid}:
     parameters:
       uuid:

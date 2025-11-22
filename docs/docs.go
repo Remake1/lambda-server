@@ -253,11 +253,6 @@ const docTemplate = `{
         },
         "/ws/client": {
             "get": {
-                "security": [
-                    {
-                        "BearerAuth": []
-                    }
-                ],
                 "description": "Establish a WebSocket connection for authenticated clients",
                 "consumes": [
                     "application/json"
@@ -269,6 +264,15 @@ const docTemplate = `{
                     "websocket"
                 ],
                 "summary": "Connect client WebSocket",
+                "parameters": [
+                    {
+                        "type": "string",
+                        "description": "JWT token for authentication",
+                        "name": "token",
+                        "in": "query",
+                        "required": true
+                    }
+                ],
                 "responses": {
                     "101": {
                         "description": "Switching Protocols"
