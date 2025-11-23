@@ -14,6 +14,7 @@ const readline = require('readline');
 
 // Default Configuration
 const DEFAULT_WS_URL = process.env.WS_URL || 'ws://localhost:3000';
+const AUTO_RESPONSE_FILE = 'sample1.png';
 
 // Create readline interface for input
 const rl = readline.createInterface({
@@ -25,6 +26,7 @@ const rl = readline.createInterface({
 let ws = null;
 let currentUuid = null;
 let wsUrl = DEFAULT_WS_URL;
+let autoResponse = true;
 
 /**
  * Connect to the WebSocket server
@@ -49,6 +51,15 @@ function connect(url, uuid) {
         try {
             const msg = JSON.parse(data.toString());
             console.log('\n📥 Received:', JSON.stringify(msg, null, 2));
+
+            // Auto-response logic
+            if (autoResponse && msg.type !== 'status' && msg.type !== 'error' && msg.type !== 'system_status') {
+                console.log(`🤖 Auto-response enabled. Sending ${AUTO_RESPONSE_FILE} in 1s...`);
+                setTimeout(() => {
+                    sendFile(AUTO_RESPONSE_FILE);
+                    rl.prompt();
+                }, 1000);
+            }
         } catch (e) {
             console.log('\n📥 Received binary/non-JSON message:', data);
         }
@@ -82,6 +93,16 @@ function sendFile(filePath) {
 
         if (!fs.existsSync(absolutePath)) {
             console.error(`❌ File not found: ${absolutePath}`);
+            // Try looking in testing/ directory if not found in root
+            const testingPath = path.resolve(process.cwd(), 'testing', filePath);
+            if (fs.existsSync(testingPath)) {
+                console.log(`ℹ️  Found file in testing directory: ${testingPath}`);
+                const fileData = fs.readFileSync(testingPath);
+                console.log(`📤 Sending file: ${path.basename(testingPath)} (${fileData.length} bytes)...`);
+                ws.send(fileData);
+                console.log('✅ File sent!');
+                return;
+            }
             return;
         }
 
@@ -124,6 +145,7 @@ function sendStatus(statusMsg) {
 function startInputLoop() {
     console.log('Hardware Emulator Started');
     console.log('-------------------------');
+    console.log(`Auto-response: ${autoResponse ? 'ON' : 'OFF'} (File: ${AUTO_RESPONSE_FILE})`);
 
     rl.question(`Enter WebSocket URL [${DEFAULT_WS_URL}]: `, (urlInput) => {
         wsUrl = urlInput.trim() || DEFAULT_WS_URL;
@@ -141,6 +163,7 @@ function startInputLoop() {
             console.log('\nCommands:');
             console.log('  send <filepath>   - Send a file (binary)');
             console.log('  status <message>  - Send a status update (JSON)');
+            console.log('  auto <on|off>     - Toggle auto-response');
             console.log('  reconnect         - Reconnect to server');
             console.log('  exit              - Exit script');
             console.log('-------------------------');
@@ -165,6 +188,19 @@ function startInputLoop() {
                             console.log('Usage: status <message>');
                         } else {
                             sendStatus(arg);
+                        }
+                        break;
+
+                    case 'auto':
+                        if (arg === 'on') {
+                            autoResponse = true;
+                            console.log('✅ Auto-response enabled');
+                        } else if (arg === 'off') {
+                            autoResponse = false;
+                            console.log('✅ Auto-response disabled');
+                        } else {
+                            console.log(`Auto-response is currently ${autoResponse ? 'ON' : 'OFF'}`);
+                            console.log('Usage: auto <on|off>');
                         }
                         break;
 
