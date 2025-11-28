@@ -1,6 +1,0 @@
-POST http://localhost:3000/api/v1/auth/refresh
-Content-Type: application/json
-
-{
-  "refresh_token": "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJ0eXBlIjoicmVmcmVzaCIsInN1YiI6ImVlOWI4Y2YyLTUwZTEtNDg1Mi04ZGQ2LTcxYjA5NTNlNDQyNSIsImV4cCI6MTc2MzE4MzY2NywiaWF0IjoxNzYzMDEwODY3fQ.8P9en-t-3PMQAwjQZHzmKbzqMdE7Nmz5JgiRRtOPZto"
-}

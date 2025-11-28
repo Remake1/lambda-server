@@ -42,7 +42,7 @@ func (s *GeminiService) AnalyzeImage(ctx context.Context, imageData []byte, requ
 		prompt = fmt.Sprintf("Analyze this LeetCode problem and provide a solution in %s. Explain your approach and provide the complete code solution.", language)
 	} else {
 		// For other type, use a general prompt
-		prompt = "Analyze this image and provide a detailed explanation of what you see."
+		prompt = "Analyze this image and provide a solution to the problem you see."
 	}
 
 	// Create image part from bytes
