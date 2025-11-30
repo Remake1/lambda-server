@@ -3,6 +3,7 @@ package websocket
 import (
 	"context"
 	"encoding/json"
+	"fmt"
 	"lambda_server/internal/services"
 	"log"
 
@@ -36,6 +37,7 @@ type ConnectionPair struct {
 	// Client preferences for AI processing
 	RequestType string // "leetcode" or "other"
 	Language    string // "C++", "C", "Python", "JavaScript", "TypeScript"
+	Model       string // "gemini-2.5-pro", "gemini-2.5-flash", "gemini-2.5-flash-lite"
 }
 
 // Hub manages the lifecycle of WebSocket connections and message routing.
@@ -250,6 +252,32 @@ func (h *Hub) handleClientMessage(msg *HubMessage) {
 				log.Printf("Hub: Stored language '%s' for UUID %s", language, msg.ClientUUID)
 			}
 		}
+
+		// Extract and store model
+		var model string
+		if m, ok := clientMsg["model"].(string); ok {
+			model = m
+		} else if payload, ok := clientMsg["payload"].(map[string]interface{}); ok {
+			if m, ok := payload["model"].(string); ok {
+				model = m
+			}
+		}
+
+		if model != "" {
+			// Validate model
+			validModels := map[string]bool{
+				"gemini-2.5-pro":        true,
+				"gemini-2.5-flash":      true,
+				"gemini-2.5-flash-lite": true,
+			}
+			if validModels[model] {
+				pair.Model = model
+				log.Printf("Hub: Stored model '%s' for UUID %s", model, msg.ClientUUID)
+			} else {
+				log.Printf("Hub: Invalid model '%s' requested for UUID %s. Ignoring.", model, msg.ClientUUID)
+				h.sendErrorMessage(msg.Connection, "invalid_model", fmt.Sprintf("Model '%s' is not supported.", model))
+			}
+		}
 	}
 
 	// If hardware is not connected, just store preferences and return
@@ -298,6 +326,7 @@ func (h *Hub) handleHardwareMessage(msg *HubMessage) {
 		// Get client preferences for AI processing
 		requestType := pair.RequestType
 		language := pair.Language
+		model := pair.Model
 
 		// Default values if not set
 		if requestType == "" {
@@ -308,16 +337,20 @@ func (h *Hub) handleHardwareMessage(msg *HubMessage) {
 			language = "C++" // Default language for leetcode
 			log.Printf("Hub: No language specified for leetcode request %s, defaulting to 'C++'", msg.ClientUUID)
 		}
+		if model == "" {
+			model = "gemini-2.5-flash" // Default model
+			log.Printf("Hub: No model specified for %s, defaulting to 'gemini-2.5-flash'", msg.ClientUUID)
+		}
 
 		// Call Gemini AI service to analyze the image
 		// Make this call in a goroutine to avoid blocking the Hub's event loop
 		if h.geminiService != nil {
-			log.Printf("Hub: Calling Gemini API for UUID %s (type: %s, language: %s)", msg.ClientUUID, requestType, language)
+			log.Printf("Hub: Calling Gemini API for UUID %s (type: %s, language: %s, model: %s)", msg.ClientUUID, requestType, language, model)
 
 			// Make the API call asynchronously
 			go func() {
 				ctx := context.Background()
-				aiResult, aiError := h.geminiService.AnalyzeImage(ctx, imageData, requestType, language)
+				aiResult, aiError := h.geminiService.AnalyzeImage(ctx, imageData, requestType, language, model)
 
 				// Send result back to Hub's event loop for thread-safe delivery
 				h.aiResult <- &AIResultMessage{
