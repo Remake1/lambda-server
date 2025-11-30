@@ -34,7 +34,7 @@ func NewGeminiService(cfg *config.Config) (*GeminiService, error) {
 }
 
 // AnalyzeImage processes an image with a prompt based on type and language
-func (s *GeminiService) AnalyzeImage(ctx context.Context, imageData []byte, requestType, language string) (string, error) {
+func (s *GeminiService) AnalyzeImage(ctx context.Context, imageData []byte, requestType, language, model string) (string, error) {
 	// Construct the prompt based on type
 	var prompt string
 	if requestType == "leetcode" {
@@ -56,7 +56,7 @@ func (s *GeminiService) AnalyzeImage(ctx context.Context, imageData []byte, requ
 	content := genai.NewContentFromParts([]*genai.Part{imagePart, textPart}, genai.RoleUser)
 
 	// Generate content using the Models service
-	resp, err := s.genaiClient.Models.GenerateContent(ctx, "models/gemini-2.5-pro", []*genai.Content{content}, nil)
+	resp, err := s.genaiClient.Models.GenerateContent(ctx, "models/"+model, []*genai.Content{content}, nil)
 	if err != nil {
 		return "", fmt.Errorf("failed to generate content: %w", err)
 	}
