@@ -5,9 +5,17 @@ import (
 	"lambda_server/internal/database"
 	"os"
 	"path/filepath"
+	"time"
 
 	"github.com/google/uuid"
 	"gorm.io/gorm"
+)
+
+const (
+	// ScreenshotTTL is the time-to-live for screenshots before automatic cleanup
+	ScreenshotTTL = 3 * time.Minute
+	// CleanupInterval is how often the cleanup routine runs
+	CleanupInterval = 1 * time.Minute
 )
 
 // ScreenshotStore manages the persistent storage of screenshots
@@ -101,4 +109,47 @@ func (s *ScreenshotStore) DeleteByClientID(clientID string) {
 	}
 
 	s.db.Where("client_id = ?", clientID).Delete(&database.Screenshot{})
+}
+
+// StartCleanupRoutine starts a background goroutine that periodically deletes expired screenshots
+func (s *ScreenshotStore) StartCleanupRoutine() {
+	go func() {
+		ticker := time.NewTicker(CleanupInterval)
+		defer ticker.Stop()
+
+		for range ticker.C {
+			s.deleteExpired()
+		}
+	}()
+	fmt.Println("Screenshot cleanup routine started (TTL: 3 minutes)")
+}
+
+// deleteExpired removes all screenshots older than ScreenshotTTL
+func (s *ScreenshotStore) deleteExpired() {
+	expirationTime := time.Now().Add(-ScreenshotTTL)
+
+	var screenshots []database.Screenshot
+	if err := s.db.Where("created_at < ?", expirationTime).Find(&screenshots).Error; err != nil {
+		fmt.Printf("Error finding expired screenshots: %v\n", err)
+		return
+	}
+
+	if len(screenshots) == 0 {
+		return
+	}
+
+	// Delete files from disk
+	for _, sc := range screenshots {
+		if err := os.Remove(sc.FilePath); err != nil && !os.IsNotExist(err) {
+			fmt.Printf("Error removing screenshot file %s: %v\n", sc.FilePath, err)
+		}
+	}
+
+	// Delete from database
+	if err := s.db.Where("created_at < ?", expirationTime).Delete(&database.Screenshot{}).Error; err != nil {
+		fmt.Printf("Error deleting expired screenshots from database: %v\n", err)
+		return
+	}
+
+	fmt.Printf("Cleaned up %d expired screenshots\n", len(screenshots))
 }

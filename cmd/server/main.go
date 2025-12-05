@@ -69,6 +69,7 @@ func main() {
 
 	// Initialize Screenshot Store
 	screenshotStore := store.NewScreenshotStore(database.DB)
+	screenshotStore.StartCleanupRoutine()
 
 	// Initialize AI Handler
 	aiHandler := handlers.NewAIHandler(geminiService, screenshotStore)
