@@ -1,10 +1,11 @@
 package websocket
 
 import (
-	"context"
+	"encoding/base64"
 	"encoding/json"
 	"fmt"
-	"lambda_server/internal/services"
+	"lambda_server/internal/store"
+	"lambda_server/internal/utils"
 	"log"
 
 	"github.com/gorilla/websocket"
@@ -18,15 +19,6 @@ type HubMessage struct {
 	Payload    []byte
 	Connection *Connection
 	ClientUUID string
-}
-
-// AIResultMessage is used to send AI processing results back to the Hub
-// for thread-safe delivery to clients.
-type AIResultMessage struct {
-	ClientUUID string
-	Result     string
-	Error      error
-	ImageSize  int
 }
 
 // ConnectionPair holds the paired client and hardware connections.
@@ -62,15 +54,12 @@ type Hub struct {
 	// Channel for processing messages received from hardware.
 	processHardwareMsg chan *HubMessage
 
-	// Channel for AI processing results to be sent to clients.
-	aiResult chan *AIResultMessage
-
-	// Gemini AI service for image analysis
-	geminiService *services.GeminiService
+	// Screenshot store for temporary storage
+	screenshotStore *store.ScreenshotStore
 }
 
 // NewHub creates and returns a new Hub instance.
-func NewHub(geminiService *services.GeminiService) *Hub {
+func NewHub(screenshotStore *store.ScreenshotStore) *Hub {
 	return &Hub{
 		connections:        make(map[string]*ConnectionPair),
 		registerClient:     make(chan *Connection),
@@ -78,8 +67,7 @@ func NewHub(geminiService *services.GeminiService) *Hub {
 		unregister:         make(chan *Connection),
 		processClientMsg:   make(chan *HubMessage),
 		processHardwareMsg: make(chan *HubMessage),
-		aiResult:           make(chan *AIResultMessage),
-		geminiService:      geminiService,
+		screenshotStore:    screenshotStore,
 	}
 }
 
@@ -108,10 +96,6 @@ func (h *Hub) Run() {
 		// Case 5: Process a message from Hardware
 		case msg := <-h.processHardwareMsg:
 			h.handleHardwareMessage(msg)
-
-		// Case 6: Process AI result and send to client
-		case aiMsg := <-h.aiResult:
-			h.handleAIResult(aiMsg)
 		}
 	}
 }
@@ -312,81 +296,53 @@ func (h *Hub) handleHardwareMessage(msg *HubMessage) {
 		return
 	}
 
-	// This is the core logic from the user query.
-	// We must check the message type to distinguish
-	// a data-file (image) from a status message (JSON).
-
 	if msg.Type == websocket.BinaryMessage {
-		// This is the image file [15, 16, 17]
+		// 1. Store the image locally
 		imageData := msg.Payload
-		imageSize := len(imageData)
-
-		log.Printf("Hub: Received BINARY image from hardware %s. Size: %d bytes", msg.ClientUUID, imageSize)
-
-		// Get client preferences for AI processing
-		requestType := pair.RequestType
-		language := pair.Language
-		model := pair.Model
-
-		// Default values if not set
-		if requestType == "" {
-			requestType = "other"
-			log.Printf("Hub: No request type specified for %s, defaulting to 'other'", msg.ClientUUID)
-		}
-		if requestType == "leetcode" && language == "" {
-			language = "C++" // Default language for leetcode
-			log.Printf("Hub: No language specified for leetcode request %s, defaulting to 'C++'", msg.ClientUUID)
-		}
-		if model == "" {
-			model = "gemini-2.5-flash" // Default model
-			log.Printf("Hub: No model specified for %s, defaulting to 'gemini-2.5-flash'", msg.ClientUUID)
+		imageID, err := h.screenshotStore.Save(msg.ClientUUID, imageData)
+		if err != nil {
+			log.Printf("Hub: Error saving screenshot for %s: %v", msg.ClientUUID, err)
+			h.sendErrorMessage(pair.Client, "save_error", "Failed to save screenshot on server")
+			return
 		}
 
-		// Call Gemini AI service to analyze the image
-		// Make this call in a goroutine to avoid blocking the Hub's event loop
-		if h.geminiService != nil {
-			log.Printf("Hub: Calling Gemini API for UUID %s (type: %s, language: %s, model: %s)", msg.ClientUUID, requestType, language, model)
+		// 2. Compress the image for the client
+		compressedData, err := utils.CompressImage(imageData, 20) // 20% quality for preview
+		if err != nil {
+			log.Printf("Hub: Error compressing screenshot for %s: %v", msg.ClientUUID, err)
+			// Decide if we should error out or send original (maybe too big).
+			// Let's send error for now to be safe.
+			h.sendErrorMessage(pair.Client, "compression_error", "Failed to compress screenshot")
+			return
+		}
 
-			// Make the API call asynchronously
-			go func() {
-				ctx := context.Background()
-				aiResult, aiError := h.geminiService.AnalyzeImage(ctx, imageData, requestType, language, model)
+		// Encode to Base64
+		// We could send binary, but mixing JSON metadata with binary in WS is tricky without
+		// a custom protocol. Sending JSON with base64 is easier for the client to handle
+		// as a standard "event".
+		base64Image := base64.StdEncoding.EncodeToString(compressedData)
 
-				// Send result back to Hub's event loop for thread-safe delivery
-				h.aiResult <- &AIResultMessage{
-					ClientUUID: msg.ClientUUID,
-					Result:     aiResult,
-					Error:      aiError,
-					ImageSize:  imageSize,
-				}
-			}()
-		} else {
-			log.Printf("Hub: Warning: Gemini service not available for UUID %s", msg.ClientUUID)
-			aiResult := "AI service not available"
+		// 3. Send ID and Compressed Image to Client
+		response := map[string]interface{}{
+			"type": "screenshot_saved",
+			"payload": map[string]interface{}{
+				"id":    imageID,
+				"image": base64Image,
+			},
+		}
 
-			// Create the JSON response for the CLIENT
-			response := map[string]interface{}{
-				"type": "image_analysis_result",
-				"payload": map[string]interface{}{
-					"image_size": imageSize,
-					"ai_result":  aiResult,
-				},
-			}
+		jsonResponse, err := json.Marshal(response)
+		if err != nil {
+			log.Printf("Hub: Error marshalling screenshot_saved response: %v", err)
+			return
+		}
 
-			jsonResponse, err := json.Marshal(response)
-			if err != nil {
-				log.Printf("Hub: Error: Failed to marshal response: %v", err)
-				return
-			}
-
-			// Send this JSON response to the Client's send channel
-			select {
-			case pair.Client.send <- jsonResponse:
-				log.Printf("Hub: Successfully sent AI result to client %s", msg.ClientUUID)
-			default:
-				log.Printf("Hub: Error: Client send buffer full for %s. Closing connection.", msg.ClientUUID)
-				close(pair.Client.send)
-			}
+		select {
+		case pair.Client.send <- jsonResponse:
+			log.Printf("Hub: Sent screenshot_saved (id: %s) to %s", imageID, msg.ClientUUID)
+		default:
+			log.Printf("Hub: Error: Client send buffer full for %s. Closing.", msg.ClientUUID)
+			close(pair.Client.send)
 		}
 
 	} else if msg.Type == websocket.TextMessage {
@@ -450,47 +406,5 @@ func (h *Hub) sendErrorMessage(conn *Connection, errorType, errorMessage string)
 	default:
 		// Connection's buffer is full, disconnect it
 		close(conn.send)
-	}
-}
-
-func (h *Hub) handleAIResult(aiMsg *AIResultMessage) {
-	// Get the connection pair for this client UUID
-	pair, ok := h.connections[aiMsg.ClientUUID]
-	if !ok || pair.Client == nil {
-		log.Printf("Hub: Cannot send AI result to %s: client not connected", aiMsg.ClientUUID)
-		return
-	}
-
-	if aiMsg.Error != nil {
-		log.Printf("Hub: Error calling Gemini API for %s: %v", aiMsg.ClientUUID, aiMsg.Error)
-		h.sendErrorMessage(pair.Client, "ai_processing_failed", aiMsg.Error.Error())
-		return
-	}
-
-	log.Printf("Hub: Gemini API returned result for UUID %s (%d chars)", aiMsg.ClientUUID, len(aiMsg.Result))
-
-	// Create the JSON response for the CLIENT
-	response := map[string]interface{}{
-		"type": "image_analysis_result",
-		"payload": map[string]interface{}{
-			"image_size": aiMsg.ImageSize,
-			"ai_result":  aiMsg.Result,
-		},
-	}
-
-	jsonResponse, err := json.Marshal(response)
-	if err != nil {
-		log.Printf("Hub: Error: Failed to marshal response: %v", err)
-		return
-	}
-
-	// Send this JSON response to the Client's send channel
-	log.Printf("Hub: Sending AI result to client %s (%d bytes)", aiMsg.ClientUUID, len(jsonResponse))
-	select {
-	case pair.Client.send <- jsonResponse:
-		log.Printf("Hub: Successfully sent AI result to client %s", aiMsg.ClientUUID)
-	default:
-		log.Printf("Hub: Error: Client send buffer full for %s. Message may be lost.", aiMsg.ClientUUID)
-		// Don't close here, let the writePump handle connection issues
 	}
 }

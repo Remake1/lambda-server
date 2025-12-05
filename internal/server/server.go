@@ -2,6 +2,7 @@ package server
 
 import (
 	"lambda_server/internal/auth"
+	"lambda_server/internal/handlers"
 	"lambda_server/internal/websocket"
 	"time"
 
@@ -11,7 +12,7 @@ import (
 	ginSwagger "github.com/swaggo/gin-swagger"
 )
 
-func NewRouter(hub *websocket.Hub) *gin.Engine {
+func NewRouter(hub *websocket.Hub, aiHandler *handlers.AIHandler) *gin.Engine {
 	router := gin.Default() // gin.Default() comes with Logger and Recovery middleware.
 
 	// Add CORS middleware
@@ -33,6 +34,12 @@ func NewRouter(hub *websocket.Hub) *gin.Engine {
 			authRoutes.POST("/refresh", auth.RefreshToken)
 
 			authRoutes.GET("/me", AuthMiddleware(), auth.GetUserInfo)
+		}
+
+		aiRoutes := api.Group("/ai")
+		{
+			aiRoutes.Use(AuthMiddleware())
+			aiRoutes.POST("/analyze", aiHandler.Analyze)
 		}
 	}
 
