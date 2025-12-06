@@ -57,6 +57,31 @@ definitions:
       username:
         type: string
     type: object
+  handlers.AnalyzeRequest:
+    properties:
+      language:
+        description: for leetcode
+        type: string
+      model:
+        description: gemini model
+        type: string
+      screenshot_ids:
+        items:
+          type: string
+        type: array
+      type:
+        description: leetcode, other
+        type: string
+    required:
+    - model
+    - screenshot_ids
+    - type
+    type: object
+  handlers.AnalyzeResponse:
+    properties:
+      result:
+        type: string
+    type: object
 host: localhost:3000
 info:
   contact:
@@ -69,6 +94,46 @@ info:
   title: Lambda Server API
   version: "1.0"
 paths:
+  /ai/analyze:
+    post:
+      consumes:
+      - application/json
+      description: Analyze previously uploaded screenshots using Gemini AI
+      parameters:
+      - description: Analysis Request
+        in: body
+        name: request
+        required: true
+        schema:
+          $ref: '#/definitions/handlers.AnalyzeRequest'
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/handlers.AnalyzeResponse'
+        "400":
+          description: Bad request
+          schema:
+            additionalProperties:
+              type: string
+            type: object
+        "404":
+          description: Screenshot not found
+          schema:
+            additionalProperties:
+              type: string
+            type: object
+        "500":
+          description: Internal server error
+          schema:
+            additionalProperties:
+              type: string
+            type: object
+      summary: Analyze screenshots
+      tags:
+      - ai
   /auth/login:
     post:
       consumes:

@@ -136,7 +136,7 @@ func Login(c *gin.Context) {
 	}
 
 	// Generate Access Token (15 minutes)
-	accessExpirationTime := time.Now().Add(15 * time.Minute)
+	accessExpirationTime := time.Now().Add(25 * time.Minute)
 	accessClaims := &CustomClaims{
 		Type: "access",
 		RegisteredClaims: jwt.RegisteredClaims{

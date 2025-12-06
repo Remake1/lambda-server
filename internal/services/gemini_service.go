@@ -33,27 +33,34 @@ func NewGeminiService(cfg *config.Config) (*GeminiService, error) {
 	return &GeminiService{genaiClient: client}, nil
 }
 
-// AnalyzeImage processes an image with a prompt based on type and language
-func (s *GeminiService) AnalyzeImage(ctx context.Context, imageData []byte, requestType, language, model string) (string, error) {
+// AnalyzeImages processes multiple images with a prompt based on type and language
+func (s *GeminiService) AnalyzeImages(ctx context.Context, imagesData [][]byte, requestType, language, model string) (string, error) {
 	// Construct the prompt based on type
 	var prompt string
 	if requestType == "leetcode" {
 		// For leetcode type, include the language in the prompt
-		prompt = fmt.Sprintf("Analyze this LeetCode problem and provide a solution in %s. Explain your approach and provide the complete code solution.", language)
+		prompt = fmt.Sprintf("Analyze these images (which may be parts of a LeetCode problem) and provide a solution in %s. Explain your approach and provide the complete code solution.", language)
 	} else {
 		// For other type, use a general prompt
-		prompt = "Analyze this image and provide a solution to the problem you see."
+		prompt = "Analyze these images and provide a solution to the problem you see."
 	}
 
-	// Create image part from bytes
-	// Default to PNG, could detect MIME type in the future
-	imagePart := genai.NewPartFromBytes(imageData, "image/png")
+	// Create parts
+	parts := make([]*genai.Part, 0, len(imagesData)+1)
+
+	// Add images
+	for _, data := range imagesData {
+		// Default to PNG, could detect MIME type in the future or use what we stored
+		// Since we store what we receive, let's assume it's compatible or we cleaned it up.
+		// For now simple pass-through.
+		parts = append(parts, genai.NewPartFromBytes(data, "image/png"))
+	}
 
 	// Create text part from prompt
-	textPart := genai.NewPartFromText(prompt)
+	parts = append(parts, genai.NewPartFromText(prompt))
 
 	// Create content with image and text parts
-	content := genai.NewContentFromParts([]*genai.Part{imagePart, textPart}, genai.RoleUser)
+	content := genai.NewContentFromParts(parts, genai.RoleUser)
 
 	// Generate content using the Models service
 	resp, err := s.genaiClient.Models.GenerateContent(ctx, "models/"+model, []*genai.Content{content}, nil)

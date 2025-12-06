@@ -22,6 +22,67 @@ const docTemplate = `{
     "host": "{{.Host}}",
     "basePath": "{{.BasePath}}",
     "paths": {
+        "/ai/analyze": {
+            "post": {
+                "description": "Analyze previously uploaded screenshots using Gemini AI",
+                "consumes": [
+                    "application/json"
+                ],
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "ai"
+                ],
+                "summary": "Analyze screenshots",
+                "parameters": [
+                    {
+                        "description": "Analysis Request",
+                        "name": "request",
+                        "in": "body",
+                        "required": true,
+                        "schema": {
+                            "$ref": "#/definitions/handlers.AnalyzeRequest"
+                        }
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "$ref": "#/definitions/handlers.AnalyzeResponse"
+                        }
+                    },
+                    "400": {
+                        "description": "Bad request",
+                        "schema": {
+                            "type": "object",
+                            "additionalProperties": {
+                                "type": "string"
+                            }
+                        }
+                    },
+                    "404": {
+                        "description": "Screenshot not found",
+                        "schema": {
+                            "type": "object",
+                            "additionalProperties": {
+                                "type": "string"
+                            }
+                        }
+                    },
+                    "500": {
+                        "description": "Internal server error",
+                        "schema": {
+                            "type": "object",
+                            "additionalProperties": {
+                                "type": "string"
+                            }
+                        }
+                    }
+                }
+            }
+        },
         "/auth/login": {
             "post": {
                 "description": "Authenticate user with email and password, returns access and refresh tokens",
@@ -430,6 +491,42 @@ const docTemplate = `{
                     "type": "string"
                 },
                 "username": {
+                    "type": "string"
+                }
+            }
+        },
+        "handlers.AnalyzeRequest": {
+            "type": "object",
+            "required": [
+                "model",
+                "screenshot_ids",
+                "type"
+            ],
+            "properties": {
+                "language": {
+                    "description": "for leetcode",
+                    "type": "string"
+                },
+                "model": {
+                    "description": "gemini model",
+                    "type": "string"
+                },
+                "screenshot_ids": {
+                    "type": "array",
+                    "items": {
+                        "type": "string"
+                    }
+                },
+                "type": {
+                    "description": "leetcode, other",
+                    "type": "string"
+                }
+            }
+        },
+        "handlers.AnalyzeResponse": {
+            "type": "object",
+            "properties": {
+                "result": {
                     "type": "string"
                 }
             }

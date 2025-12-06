@@ -5,8 +5,10 @@ import (
 	"lambda_server/internal/auth"
 	"lambda_server/internal/config"
 	"lambda_server/internal/database"
+	"lambda_server/internal/handlers"
 	"lambda_server/internal/server"
 	"lambda_server/internal/services"
+	"lambda_server/internal/store"
 	"lambda_server/internal/websocket"
 	"log"
 
@@ -50,7 +52,7 @@ func main() {
 	auth.Init(cfg)
 
 	// AutoMigrate the schema
-	err = database.DB.AutoMigrate(&database.User{})
+	err = database.DB.AutoMigrate(&database.User{}, &database.Screenshot{})
 	if err != nil {
 		log.Fatal("Failed to migrate database: ", err)
 	}
@@ -65,14 +67,21 @@ func main() {
 		log.Println("Gemini AI service initialized successfully")
 	}
 
+	// Initialize Screenshot Store
+	screenshotStore := store.NewScreenshotStore(database.DB)
+	screenshotStore.StartCleanupRoutine()
+
+	// Initialize AI Handler
+	aiHandler := handlers.NewAIHandler(geminiService, screenshotStore)
+
 	// Start the server
-	hub := websocket.NewHub(geminiService)
+	hub := websocket.NewHub(screenshotStore)
 
 	// 2. Run the Hub in its own goroutine
 	go hub.Run()
 
 	// 3. Pass the Hub to the router setup
-	router := server.NewRouter(hub)
+	router := server.NewRouter(hub, aiHandler)
 
 	port := cfg.Port
 	if port == "" {
