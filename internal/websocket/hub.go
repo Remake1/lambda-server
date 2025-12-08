@@ -1,12 +1,14 @@
 package websocket
 
 import (
+	"context"
 	"encoding/base64"
 	"encoding/json"
 	"fmt"
 	"lambda_server/internal/store"
 	"lambda_server/internal/utils"
 	"log"
+	"sync"
 
 	"github.com/gorilla/websocket"
 )
@@ -56,18 +58,62 @@ type Hub struct {
 
 	// Screenshot store for temporary storage
 	screenshotStore *store.ScreenshotStore
+
+	// Shutdown channel for graceful shutdown
+	shutdown chan struct{}
+
+	// WaitGroup for tracking active goroutines
+	wg sync.WaitGroup
 }
 
-// NewHub creates and returns a new Hub instance.
+// NewHub creates and returns a new Hub instance with buffered channels.
 func NewHub(screenshotStore *store.ScreenshotStore) *Hub {
 	return &Hub{
 		connections:        make(map[string]*ConnectionPair),
-		registerClient:     make(chan *Connection),
-		registerHardware:   make(chan *Connection),
-		unregister:         make(chan *Connection),
-		processClientMsg:   make(chan *HubMessage),
-		processHardwareMsg: make(chan *HubMessage),
+		registerClient:     make(chan *Connection, 100),
+		registerHardware:   make(chan *Connection, 100),
+		unregister:         make(chan *Connection, 100),
+		processClientMsg:   make(chan *HubMessage, 1000),
+		processHardwareMsg: make(chan *HubMessage, 1000),
 		screenshotStore:    screenshotStore,
+		shutdown:           make(chan struct{}),
+	}
+}
+
+// Shutdown gracefully shuts down the Hub, closing all connections.
+// It waits for all goroutines to finish or until the context times out.
+func (h *Hub) Shutdown(ctx context.Context) error {
+	log.Println("WebSocket Hub: Initiating graceful shutdown...")
+
+	// Signal the Run goroutine to stop
+	close(h.shutdown)
+
+	// Close all active connections
+	for uuid, pair := range h.connections {
+		if pair.Client != nil {
+			close(pair.Client.send)
+			log.Printf("Hub: Closed client connection for UUID %s", uuid)
+		}
+		if pair.Hardware != nil {
+			close(pair.Hardware.send)
+			log.Printf("Hub: Closed hardware connection for UUID %s", uuid)
+		}
+	}
+
+	// Wait for all goroutines to finish
+	done := make(chan struct{})
+	go func() {
+		h.wg.Wait()
+		close(done)
+	}()
+
+	select {
+	case <-done:
+		log.Println("WebSocket Hub: Graceful shutdown complete")
+		return nil
+	case <-ctx.Done():
+		log.Println("WebSocket Hub: Shutdown timeout, forcing close")
+		return ctx.Err()
 	}
 }
 
@@ -77,6 +123,11 @@ func (h *Hub) Run() {
 	log.Println("WebSocket Hub: RUNNING")
 	for {
 		select {
+		// Case 0: Shutdown signal
+		case <-h.shutdown:
+			log.Println("WebSocket Hub: Received shutdown signal, stopping...")
+			return
+
 		// Case 1: Register a new Client (Browser)
 		case conn := <-h.registerClient:
 			h.handleClientRegistration(conn)

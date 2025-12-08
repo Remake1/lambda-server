@@ -1,6 +1,7 @@
 package main
 
 import (
+	"context"
 	"lambda_server/docs"
 	"lambda_server/internal/auth"
 	"lambda_server/internal/config"
@@ -11,6 +12,11 @@ import (
 	"lambda_server/internal/store"
 	"lambda_server/internal/websocket"
 	"log"
+	"net/http"
+	"os"
+	"os/signal"
+	"syscall"
+	"time"
 
 	"github.com/joho/godotenv"
 )
@@ -48,6 +54,15 @@ func main() {
 
 	database.Connect(cfg)
 
+	// Configure database connection pool
+	sqlDB, err := database.DB.DB()
+	if err != nil {
+		log.Fatal("Failed to get database connection: ", err)
+	}
+	sqlDB.SetMaxOpenConns(25)
+	sqlDB.SetMaxIdleConns(10)
+	sqlDB.SetConnMaxLifetime(time.Hour)
+
 	// Initialize auth module with config
 	auth.Init(cfg)
 
@@ -77,18 +92,61 @@ func main() {
 	// Start the server
 	hub := websocket.NewHub(screenshotStore)
 
-	// 2. Run the Hub in its own goroutine
+	// Run the Hub in its own goroutine
 	go hub.Run()
 
-	// 3. Pass the Hub to the router setup
+	// Pass the Hub to the router setup
 	router := server.NewRouter(hub, aiHandler)
 
 	port := cfg.Port
 	if port == "" {
 		port = "3000" // Default port if not specified
 	}
-	log.Printf("Server starting on port %s", port)
-	if err := router.Run(":" + port); err != nil {
-		log.Fatal("Failed to start server: ", err)
+
+	// Create HTTP server with timeouts for production reliability
+	// WriteTimeout is set to 110s to handle long-running AI requests (Gemini can take up to 60s)
+	srv := &http.Server{
+		Addr:         ":" + port,
+		Handler:      router,
+		ReadTimeout:  30 * time.Second,
+		WriteTimeout: 110 * time.Second,
+		IdleTimeout:  120 * time.Second,
 	}
+
+	// Channel to listen for OS signals
+	quit := make(chan os.Signal, 1)
+	signal.Notify(quit, syscall.SIGINT, syscall.SIGTERM)
+
+	// Start server in a goroutine
+	go func() {
+		log.Printf("Server starting on port %s", port)
+		if err := srv.ListenAndServe(); err != nil && err != http.ErrServerClosed {
+			log.Fatalf("Failed to start server: %v", err)
+		}
+	}()
+
+	// Wait for shutdown signal
+	<-quit
+	log.Println("Received shutdown signal, initiating graceful shutdown...")
+
+	// Create shutdown context with 30 second timeout
+	ctx, cancel := context.WithTimeout(context.Background(), 30*time.Second)
+	defer cancel()
+
+	// Shutdown WebSocket hub first
+	if err := hub.Shutdown(ctx); err != nil {
+		log.Printf("WebSocket hub shutdown error: %v", err)
+	}
+
+	// Shutdown HTTP server
+	if err := srv.Shutdown(ctx); err != nil {
+		log.Printf("HTTP server shutdown error: %v", err)
+	}
+
+	// Close database connection
+	if err := sqlDB.Close(); err != nil {
+		log.Printf("Database close error: %v", err)
+	}
+
+	log.Println("Server shutdown complete")
 }

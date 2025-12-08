@@ -3,11 +3,31 @@ package websocket
 import (
 	"log"
 	"net/http"
+	"os"
+	"strings"
 
 	"github.com/gin-gonic/gin"
 	"github.com/google/uuid"
 	"github.com/gorilla/websocket"
 )
+
+// getAllowedOrigins returns the list of allowed WebSocket origins from environment
+func getAllowedOrigins() map[string]bool {
+	origins := os.Getenv("ALLOWED_ORIGINS")
+	if origins == "" {
+		// Default: allow all in development (will log warning)
+		return nil
+	}
+
+	allowed := make(map[string]bool)
+	for _, origin := range strings.Split(origins, ",") {
+		origin = strings.TrimSpace(origin)
+		if origin != "" {
+			allowed[origin] = true
+		}
+	}
+	return allowed
+}
 
 // upgrader specifies the parameters for upgrading an HTTP connection
 // to a WebSocket connection.
@@ -16,12 +36,33 @@ var upgrader = websocket.Upgrader{
 	ReadBufferSize:  1024,
 	WriteBufferSize: 1024,
 
-	// CheckOrigin is a security-critical function.
-	// In production, this must validate the origin against a
-	// list of allowed domains.[25]
+	// CheckOrigin validates the origin against allowed origins.
+	// In production, set ALLOWED_ORIGINS env var with comma-separated domains.
+	// Desktop/hardware clients (no Origin header) are always allowed.
 	CheckOrigin: func(r *http.Request) bool {
-		// log.Printf("Upgrader: Checking origin: %s", r.Header.Get("Origin"))
-		return true // Allow all for development.
+		origin := r.Header.Get("Origin")
+
+		// Desktop/hardware clients don't send Origin header - always allow
+		// This is safe because they're not subject to browser CORS restrictions
+		if origin == "" {
+			return true
+		}
+
+		allowed := getAllowedOrigins()
+
+		// If no origins configured, allow all (dev mode) but log warning
+		if allowed == nil {
+			log.Printf("WARNING: ALLOWED_ORIGINS not set, accepting all origins. Set ALLOWED_ORIGINS for production!")
+			return true
+		}
+
+		// Check if origin is in allowed list
+		if allowed[origin] {
+			return true
+		}
+
+		log.Printf("WebSocket: Rejected connection from origin: %s", origin)
+		return false
 	},
 
 	// Enable compression for better performance.[16]
